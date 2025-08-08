@@ -21,12 +21,19 @@
 <script>
   mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
+  // ✅ Place this block exactly here:
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/light-v11',
-    center: [-0.1, 51.5], // London as example
-    zoom: 12
+    center: [2, 48], // Paris area
+    zoom: 4,
+    pitch: 60,       // ← Tilt
+    bearing: -30     // ← Rotate
   });
+
+  // Optional: allow users to drag and rotate
+  map.dragRotate.enable();
+  map.touchZoomRotate.enableRotation();
 </script>
 
 </body>
