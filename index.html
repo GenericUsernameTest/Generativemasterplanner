@@ -2,18 +2,18 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - 3D with Drawing</title>
+  <title>Generative Masterplanner - 3D + m² Area</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <!-- Mapbox GL v3.14 -->
+  <!-- Mapbox GL JS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
 
-  <!-- Mapbox Draw v1.5.0 -->
+  <!-- Mapbox Draw -->
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
 
-  <!-- Turf.js -->
+  <!-- Turf.js for geospatial calculations -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -39,7 +39,10 @@
 </head>
 <body>
 
+<!-- Map container -->
 <div id="map"></div>
+
+<!-- Area display -->
 <div class="calculation-box">
   <p>Click the map to draw a polygon.</p>
   <div id="calculated-area"></div>
@@ -50,14 +53,15 @@
 
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11', // use 'light-v11' for compatibility
-    center: [-0.1276, 51.5072],
+    style: 'mapbox://styles/mapbox/light-v11',
+    center: [-0.1276, 51.5072], // London
     zoom: 16,
     pitch: 60,
     bearing: 0,
     projection: 'globe'
   });
 
+  // Initialize drawing tool
   const draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {
@@ -66,20 +70,21 @@
     },
     defaultMode: 'draw_polygon'
   });
+
   map.addControl(draw);
   map.addControl(new mapboxgl.NavigationControl());
 
   map.on('draw.create', updateArea);
-  map.on('draw.delete', updateArea);
   map.on('draw.update', updateArea);
+  map.on('draw.delete', updateArea);
 
   function updateArea(e) {
     const data = draw.getAll();
     const answer = document.getElementById('calculated-area');
     if (data.features.length > 0) {
       const area = turf.area(data); // in m²
-      const hectares = (area / 10000).toFixed(2);
-      answer.innerHTML = `<p><strong>${hectares}</strong></p><p>hectares</p>`;
+      const squareMeters = Math.round(area).toLocaleString();
+      answer.innerHTML = `<p><strong>${squareMeters}</strong></p><p>m²</p>`;
     } else {
       answer.innerHTML = '';
       if (e.type !== 'draw.delete') {
