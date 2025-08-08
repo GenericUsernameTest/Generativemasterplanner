@@ -22,13 +22,13 @@
     style: 'mapbox://styles/mapbox/light-v11',
     center: [10, 50], // Central Europe
     zoom: 3.5,
-    pitch: 45,         // A subtle angle
-    bearing: 0,        // Keep north up
-    projection: 'globe' // 🌍 This is the key for natural globe perspective
+    pitch: 45,
+    bearing: 0,
+    projection: 'globe'
   });
 
-  // Optional: add terrain (looks nicer with tilt)
   map.on('load', () => {
+    // Add terrain
     map.addSource('mapbox-dem', {
       type: 'raster-dem',
       url: 'mapbox://mapbox.terrain-rgb',
@@ -37,6 +37,22 @@
     });
 
     map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
+
+    // Add 3D buildings layer
+    map.addLayer({
+      id: '3d-buildings',
+      source: 'composite',
+      'source-layer': 'building',
+      filter: ['==', 'extrude', 'true'],
+      type: 'fill-extrusion',
+      minzoom: 15,
+      paint: {
+        'fill-extrusion-color': '#aaa',
+        'fill-extrusion-height': ['get', 'height'],
+        'fill-extrusion-base': ['get', 'min_height'],
+        'fill-extrusion-opacity': 0.6
+      }
+    });
   });
 </script>
 </body>
