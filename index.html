@@ -2,13 +2,15 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - Stable Map</title>
+  <title>Map with Drawing + Area</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.css" rel="stylesheet" />
+
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -25,6 +27,9 @@
       font-size: 14px;
       border-radius: 4px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .mapbox-gl-draw_ctrl-top-left {
+      top: 60px !important;
     }
   </style>
 </head>
@@ -46,8 +51,6 @@
     projection: 'globe'
   });
 
-  map.addControl(new mapboxgl.NavigationControl());
-
   const draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {
@@ -55,7 +58,9 @@
       trash: true
     }
   });
+
   map.addControl(draw);
+  map.addControl(new mapboxgl.NavigationControl());
 
   map.on('draw.create', updateArea);
   map.on('draw.update', updateArea);
