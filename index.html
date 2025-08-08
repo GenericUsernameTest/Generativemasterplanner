@@ -13,7 +13,7 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.css" rel="stylesheet" />
 
-  <!-- Turf.js for area calculations -->
+  <!-- Turf.js -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -35,20 +35,16 @@
 </head>
 <body>
 
-<!-- Area Display Box -->
+<!-- Area Info Box -->
 <div id="area-info">Draw a polygon to calculate area</div>
-
-<!-- Map Container -->
 <div id="map"></div>
 
 <script>
-  // ✅ Your Mapbox Access Token
   mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-  // ✅ Initialize Map
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/standard', // Full 3D + terrain + sky
+    style: 'mapbox://styles/mapbox/standard',
     center: [-0.1276, 51.5072], // London
     zoom: 16,
     pitch: 60,
@@ -56,10 +52,9 @@
     projection: 'globe'
   });
 
-  // ✅ Add Map Controls
+  // Add controls
   map.addControl(new mapboxgl.NavigationControl());
 
-  // ✅ Add Mapbox Draw Controls
   const draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {
@@ -69,7 +64,7 @@
   });
   map.addControl(draw);
 
-  // ✅ Area Measurement Logic
+  // Area measurement
   map.on('draw.create', updateArea);
   map.on('draw.update', updateArea);
   map.on('draw.delete', clearArea);
