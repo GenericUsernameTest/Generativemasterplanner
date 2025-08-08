@@ -19,7 +19,6 @@
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-
     #area-info {
       position: absolute;
       top: 10px;
@@ -65,11 +64,11 @@
   });
   map.addControl(draw);
 
-  // Add navigation controls
+  // Optional: Add navigation controls
   map.addControl(new mapboxgl.NavigationControl());
 
+  // Terrain + built-in 3D buildings
   map.on('load', () => {
-    // Add terrain for better 3D feel
     map.addSource('mapbox-dem', {
       type: 'raster-dem',
       url: 'mapbox://mapbox.terrain-rgb',
@@ -77,14 +76,17 @@
       maxzoom: 14
     });
     map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
+
+    // Ensure 3D buildings stay visible
+    map.setLayoutProperty('building', 'visibility', 'visible');
   });
 
-  // Update area when a polygon is drawn or updated
+  // Calculate area on draw
   map.on('draw.create', updateArea);
   map.on('draw.update', updateArea);
   map.on('draw.delete', clearArea);
 
-  function updateArea(e) {
+  function updateArea() {
     const data = draw.getAll();
     if (data.features.length > 0) {
       const area = turf.area(data); // in square meters
