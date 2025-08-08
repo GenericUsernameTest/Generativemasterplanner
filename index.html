@@ -2,32 +2,36 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Map with Drawing + Area</title>
+  <title>Generative Masterplanner - 3D with Drawing</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <!-- Mapbox GL v3.14 -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
 
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.css" rel="stylesheet" />
+  <!-- Mapbox Draw v1.5.0 -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <!-- Turf.js -->
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-    #area-info {
+
+    .calculation-box {
       position: absolute;
-      top: 10px;
+      bottom: 40px;
       left: 10px;
-      z-index: 1;
-      background: white;
-      padding: 8px 12px;
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 15px;
       font-family: sans-serif;
       font-size: 14px;
       border-radius: 4px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
+
     .mapbox-gl-draw_ctrl-top-left {
       top: 60px !important;
     }
@@ -35,15 +39,18 @@
 </head>
 <body>
 
-<div id="area-info">Draw a polygon to calculate area</div>
 <div id="map"></div>
+<div class="calculation-box">
+  <p>Click the map to draw a polygon.</p>
+  <div id="calculated-area"></div>
+</div>
 
 <script>
   mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11',
+    style: 'mapbox://styles/mapbox/light-v11', // use 'light-v11' for compatibility
     center: [-0.1276, 51.5072],
     zoom: 16,
     pitch: 60,
@@ -56,34 +63,29 @@
     controls: {
       polygon: true,
       trash: true
-    }
+    },
+    defaultMode: 'draw_polygon'
   });
-
   map.addControl(draw);
   map.addControl(new mapboxgl.NavigationControl());
 
   map.on('draw.create', updateArea);
+  map.on('draw.delete', updateArea);
   map.on('draw.update', updateArea);
-  map.on('draw.delete', clearArea);
 
-  function updateArea() {
+  function updateArea(e) {
     const data = draw.getAll();
+    const answer = document.getElementById('calculated-area');
     if (data.features.length > 0) {
       const area = turf.area(data); // in m²
       const hectares = (area / 10000).toFixed(2);
-      showArea(hectares);
+      answer.innerHTML = `<p><strong>${hectares}</strong></p><p>hectares</p>`;
+    } else {
+      answer.innerHTML = '';
+      if (e.type !== 'draw.delete') {
+        alert('Click the map to draw a polygon.');
+      }
     }
-  }
-
-  function clearArea() {
-    showArea(null);
-  }
-
-  function showArea(value) {
-    const info = document.getElementById('area-info');
-    info.innerHTML = value
-      ? `Area: <strong>${value} ha</strong>`
-      : 'Draw a polygon to calculate area';
   }
 </script>
 
