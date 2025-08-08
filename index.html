@@ -2,121 +2,127 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - Density Calculation</title>
+  <title>Generative 3D Housing Blocks</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <!-- Mapbox GL JS -->
+  <!-- Mapbox -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
 
-  <!-- Mapbox Draw -->
+  <!-- Draw + Turf -->
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-
-  <!-- Turf.js for geometry calculations -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-
-    .calculation-box {
+    .info {
       position: absolute;
-      bottom: 40px;
+      bottom: 30px;
       left: 10px;
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 15px;
+      background: #fff;
+      padding: 10px;
       font-family: sans-serif;
       font-size: 14px;
       border-radius: 4px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-      z-index: 1;
-    }
-
-    .mapbox-gl-draw_ctrl-top-left {
-      top: 60px !important;
-    }
-
-    label {
-      font-weight: bold;
-      display: block;
-      margin-top: 10px;
-    }
-
-    input[type="number"] {
-      width: 60px;
-      padding: 2px;
     }
   </style>
 </head>
 <body>
-
-<!-- Map container -->
 <div id="map"></div>
-
-<!-- Area and Density UI -->
-<div class="calculation-box">
-  <p>Area: <span id="area-m2">0</span> m²</p>
-  <p>Hectares: <span id="area-ha">0</span> ha</p>
-
-  <label for="target-density">Target Density (homes/ha):</label>
-  <input type="number" id="target-density" value="40" min="1" />
-
-  <p>Estimated Homes: <strong id="estimated-units">0</strong></p>
+<div class="info">
+  <p>Draw a polygon to generate 3D home blocks.<br>
+  Assumes <strong>40 homes/ha</strong> – each block = 100 m².</p>
 </div>
 
 <script>
-  mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
+mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11',
-    center: [-0.1276, 51.5072], // London
-    zoom: 16,
-    pitch: 60,
-    bearing: 0,
-    projection: 'globe'
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/light-v11',
+  center: [-0.1276, 51.5072], // London
+  zoom: 16,
+  pitch: 60,
+  bearing: 0,
+  projection: 'globe'
+});
+
+const draw = new MapboxDraw({
+  displayControlsDefault: false,
+  controls: { polygon: true, trash: true },
+  defaultMode: 'draw_polygon'
+});
+
+map.addControl(draw);
+map.addControl(new mapboxgl.NavigationControl());
+
+map.on('draw.create', generateBlocks);
+map.on('draw.update', generateBlocks);
+map.on('draw.delete', () => {
+  if (map.getSource('home-blocks')) map.removeLayer('home-layer') && map.removeSource('home-blocks');
+});
+
+function generateBlocks() {
+  const data = draw.getAll();
+  if (data.features.length === 0) return;
+
+  const polygon = data.features[0];
+  const area = turf.area(polygon); // in m²
+  const numHomes = Math.floor(area / 100); // 100 m² per home
+
+  // Create a grid of points inside the polygon
+  const cellSize = 10; // meters
+  const options = { units: 'meters', mask: polygon };
+  const grid = turf.pointGrid(turf.bbox(polygon), cellSize, options);
+
+  // Trim to numHomes
+  const points = grid.features.slice(0, numHomes);
+
+  // Convert points into 10x10m square polygons
+  const squarePolygons = points.map(pt => {
+    const [x, y] = pt.geometry.coordinates;
+    const half = 5 / 111320; // ~5 meters in degrees
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[
+          [x - half, y - half],
+          [x + half, y - half],
+          [x + half, y + half],
+          [x - half, y + half],
+          [x - half, y - half]
+        ]]
+      }
+    };
   });
 
-  const draw = new MapboxDraw({
-    displayControlsDefault: false,
-    controls: {
-      polygon: true,
-      trash: true
-    },
-    defaultMode: 'draw_polygon'
-  });
+  const housingGeoJSON = {
+    type: 'FeatureCollection',
+    features: squarePolygons
+  };
 
-  map.addControl(draw);
-  map.addControl(new mapboxgl.NavigationControl());
+  // Add to map
+  if (map.getSource('home-blocks')) {
+    map.getSource('home-blocks').setData(housingGeoJSON);
+  } else {
+    map.addSource('home-blocks', { type: 'geojson', data: housingGeoJSON });
 
-  map.on('draw.create', updateArea);
-  map.on('draw.update', updateArea);
-  map.on('draw.delete', updateArea);
-  document.getElementById('target-density').addEventListener('input', updateArea);
-
-  function updateArea() {
-    const data = draw.getAll();
-    const areaM2 = document.getElementById('area-m2');
-    const areaHa = document.getElementById('area-ha');
-    const unitDisplay = document.getElementById('estimated-units');
-
-    if (data.features.length > 0) {
-      const area = turf.area(data); // m²
-      const hectares = area / 10000;
-      const density = parseFloat(document.getElementById('target-density').value);
-
-      areaM2.textContent = Math.round(area).toLocaleString();
-      areaHa.textContent = hectares.toFixed(2);
-      unitDisplay.textContent = Math.round(hectares * density).toLocaleString();
-
-    } else {
-      areaM2.textContent = '0';
-      areaHa.textContent = '0';
-      unitDisplay.textContent = '0';
-    }
+    map.addLayer({
+      id: 'home-layer',
+      type: 'fill-extrusion',
+      source: 'home-blocks',
+      paint: {
+        'fill-extrusion-color': '#88c',
+        'fill-extrusion-height': 3,
+        'fill-extrusion-base': 0,
+        'fill-extrusion-opacity': 0.8
+      }
+    });
   }
+}
 </script>
-
 </body>
 </html>
