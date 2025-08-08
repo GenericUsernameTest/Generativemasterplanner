@@ -2,13 +2,13 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>40 Homes per Hectare</title>
+  <title>Generative Masterplan – 40 Homes/ha</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" />
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <style>
     body { margin: 0; padding: 0; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
@@ -21,16 +21,16 @@
       font-family: sans-serif;
       font-size: 14px;
       border-radius: 4px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      box-shadow: 0 0 8px rgba(0,0,0,0.15);
       line-height: 1.4;
+      max-width: 220px;
     }
     .info b { font-size: 15px; }
   </style>
 </head>
 <body>
-
 <div id="map"></div>
-<div class="info" id="info-box">Draw a polygon to generate housing.</div>
+<div class="info" id="info-box">Draw a polygon to generate homes (40/ha).</div>
 
 <script>
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
@@ -39,71 +39,103 @@ const map = new mapboxgl.Map({
   container: 'map',
   style: 'mapbox://styles/mapbox/light-v11',
   center: [-0.1276, 51.5072],
-  zoom: 15,
-  pitch: 45,
+  zoom: 16,
+  pitch: 60,
   bearing: 0
 });
 
+// ✅ Drawing controls
 const draw = new MapboxDraw({
   displayControlsDefault: false,
   controls: { polygon: true, trash: true }
 });
 map.addControl(draw);
+map.addControl(new mapboxgl.NavigationControl());
 
+// ✅ Empty housing layer
 map.on('load', () => {
-  map.addSource('homes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addSource('homes', {
+    type: 'geojson',
+    data: {
+      type: 'FeatureCollection',
+      features: []
+    }
+  });
 
   map.addLayer({
     id: 'homes',
     type: 'fill-extrusion',
     source: 'homes',
     paint: {
-      'fill-extrusion-color': '#5577ff',
+      'fill-extrusion-color': '#3366ff',
       'fill-extrusion-height': 3,
       'fill-extrusion-base': 0,
-      'fill-extrusion-opacity': 0.8
+      'fill-extrusion-opacity': 0.85
     }
   });
 });
 
-map.on('draw.create', renderHomes);
+// ✅ Handle draw events
+map.on('draw.create', updateHomes);
+map.on('draw.update', updateHomes);
 map.on('draw.delete', () => {
   map.getSource('homes').setData({ type: 'FeatureCollection', features: [] });
-  document.getElementById('info-box').innerHTML = 'Draw a polygon to generate housing.';
+  document.getElementById('info-box').innerHTML = 'Draw a polygon to generate homes (40/ha).';
 });
 
-function renderHomes(e) {
-  const polygon = e.features[0];
-  const area = turf.area(polygon); // in m²
+function updateHomes(e) {
+  const polygon = draw.getAll().features[0];
+  if (!polygon) return;
+
+  const area = turf.area(polygon);
   const hectares = area / 10000;
-  const density = 40;
-  const homesToPlace = Math.floor(hectares * density);
+  const targetDensity = 40;
+  const maxHomes = Math.floor(hectares * targetDensity);
 
-  const bbox = turf.bbox(polygon);
-  const cellSize = Math.sqrt(10000 / density); // spacing to get 40/ha ≈ 15.8m
-  const points = turf.pointGrid(bbox, cellSize, { units: 'meters' });
+  const spacing = Math.sqrt(10000 / targetDensity); // ≈ 15.8m
+  const grid = turf.pointGrid(turf.bbox(polygon), spacing, {
+    units: 'meters',
+    mask: polygon
+  });
 
-  const homes = [];
-  let count = 0;
-
-  for (const pt of points.features) {
-    if (count >= homesToPlace) break;
+  const selected = [];
+  for (let pt of grid.features) {
+    if (selected.length >= maxHomes) break;
     if (turf.booleanPointInPolygon(pt, polygon)) {
-      const square = turf.transformTranslate(pt, 0, 0);
-      const poly = turf.square(pt, { size: 7, units: 'meters' }); // 7x7m home
-      homes.push(poly);
-      count++;
+      selected.push(pt);
     }
   }
 
-  const geojson = turf.featureCollection(homes);
-  map.getSource('homes').setData(geojson);
+  const offsetDeg = 3.5 / 111320; // 3.5 meters in degrees (approx for 7x7m box)
 
+  const homePolygons = selected.map(pt => {
+    const [x, y] = pt.geometry.coordinates;
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[
+          [x - offsetDeg, y - offsetDeg],
+          [x + offsetDeg, y - offsetDeg],
+          [x + offsetDeg, y + offsetDeg],
+          [x - offsetDeg, y + offsetDeg],
+          [x - offsetDeg, y - offsetDeg]
+        ]]
+      }
+    };
+  });
+
+  map.getSource('homes').setData({
+    type: 'FeatureCollection',
+    features: homePolygons
+  });
+
+  // ✅ Update info panel
   document.getElementById('info-box').innerHTML = `
-    <b>Area:</b><br>${area.toLocaleString()} m²<br>
-    <b>Hectares:</b><br>${hectares.toFixed(2)} ha<br>
-    <b>Homes placed:</b><br>${count}<br>
-    <b>Actual density:</b><br>${(count / hectares).toFixed(1)} homes/ha
+    <b>Area:</b> ${Math.round(area)} m²<br>
+    <b>Hectares:</b> ${hectares.toFixed(2)} ha<br>
+    <b>Homes placed:</b> ${selected.length}<br>
+    <b>Density:</b> ${(selected.length / hectares).toFixed(1)} homes/ha
   `;
 }
 </script>
