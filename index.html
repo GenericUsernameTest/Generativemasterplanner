@@ -20,15 +20,15 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/light-v11',
-    center: [10, 50], // Central Europe
-    zoom: 3.5,
-    pitch: 45,
+    center: [-0.1276, 51.5072], // London
+    zoom: 16,                   // Zoomed in for 3D buildings
+    pitch: 60,                  // Strong 3D tilt
     bearing: 0,
     projection: 'globe'
   });
 
   map.on('load', () => {
-    // Add terrain
+    // Add terrain for enhanced 3D effect
     map.addSource('mapbox-dem', {
       type: 'raster-dem',
       url: 'mapbox://mapbox.terrain-rgb',
@@ -38,21 +38,7 @@
 
     map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
 
-    // Add 3D buildings layer
-    map.addLayer({
-      id: '3d-buildings',
-      source: 'composite',
-      'source-layer': 'building',
-      filter: ['==', 'extrude', 'true'],
-      type: 'fill-extrusion',
-      minzoom: 15,
-      paint: {
-        'fill-extrusion-color': '#aaa',
-        'fill-extrusion-height': ['get', 'height'],
-        'fill-extrusion-base': ['get', 'min_height'],
-        'fill-extrusion-opacity': 0.6
-      }
-    });
+    // No need to add 3D buildings manually — built into style
   });
 </script>
 </body>
