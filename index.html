@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <title>Generative Masterplanner - 3D View + Area Tool</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-  
+
   <!-- Mapbox core -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
 
-  <!-- Mapbox Draw plugin -->
+  <!-- Mapbox Draw -->
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.css" rel="stylesheet" />
 
-  <!-- Turf.js for area calculation -->
+  <!-- Turf.js for area calculations -->
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -35,10 +35,10 @@
 </head>
 <body>
 
-<!-- Info box -->
+<!-- Area Info Display -->
 <div id="area-info">Draw a polygon to calculate area</div>
 
-<!-- Map container -->
+<!-- Map Container -->
 <div id="map"></div>
 
 <script>
@@ -54,7 +54,7 @@
     projection: 'globe'
   });
 
-  // Add draw controls
+  // Add Mapbox Draw controls
   const draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {
@@ -63,11 +63,9 @@
     }
   });
   map.addControl(draw);
-
-  // Optional: Add navigation controls
   map.addControl(new mapboxgl.NavigationControl());
 
-  // Terrain + built-in 3D buildings
+  // Add terrain only — let Mapbox handle buildings
   map.on('load', () => {
     map.addSource('mapbox-dem', {
       type: 'raster-dem',
@@ -75,13 +73,11 @@
       tileSize: 512,
       maxzoom: 14
     });
-    map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
 
-    // Ensure 3D buildings stay visible
-    map.setLayoutProperty('building', 'visibility', 'visible');
+    map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
   });
 
-  // Calculate area on draw
+  // Area calculations using Turf
   map.on('draw.create', updateArea);
   map.on('draw.update', updateArea);
   map.on('draw.delete', clearArea);
@@ -89,7 +85,7 @@
   function updateArea() {
     const data = draw.getAll();
     if (data.features.length > 0) {
-      const area = turf.area(data); // in square meters
+      const area = turf.area(data); // m²
       const hectares = (area / 10000).toFixed(2);
       showArea(hectares);
     }
@@ -101,11 +97,9 @@
 
   function showArea(value) {
     const info = document.getElementById('area-info');
-    if (value) {
-      info.innerHTML = `Area: <strong>${value} ha</strong>`;
-    } else {
-      info.innerHTML = 'Draw a polygon to calculate area';
-    }
+    info.innerHTML = value
+      ? `Area: <strong>${value} ha</strong>`
+      : 'Draw a polygon to calculate area';
   }
 </script>
 
