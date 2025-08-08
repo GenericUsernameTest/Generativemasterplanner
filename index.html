@@ -2,10 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - 3D View + Area Tool</title>
+  <title>Generative Masterplanner - 3D with Drawing</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <!-- Mapbox core -->
+  <!-- Mapbox GL JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
 
@@ -35,18 +35,20 @@
 </head>
 <body>
 
-<!-- Area Info Display -->
+<!-- Area Display Box -->
 <div id="area-info">Draw a polygon to calculate area</div>
 
 <!-- Map Container -->
 <div id="map"></div>
 
 <script>
+  // ✅ Your Mapbox Access Token
   mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
+  // ✅ Initialize Map
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11',
+    style: 'mapbox://styles/mapbox/standard', // Full 3D + terrain + sky
     center: [-0.1276, 51.5072], // London
     zoom: 16,
     pitch: 60,
@@ -54,7 +56,10 @@
     projection: 'globe'
   });
 
-  // Add Mapbox Draw controls
+  // ✅ Add Map Controls
+  map.addControl(new mapboxgl.NavigationControl());
+
+  // ✅ Add Mapbox Draw Controls
   const draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {
@@ -63,21 +68,8 @@
     }
   });
   map.addControl(draw);
-  map.addControl(new mapboxgl.NavigationControl());
 
-  // Add terrain only — let Mapbox handle buildings
-  map.on('load', () => {
-    map.addSource('mapbox-dem', {
-      type: 'raster-dem',
-      url: 'mapbox://mapbox.terrain-rgb',
-      tileSize: 512,
-      maxzoom: 14
-    });
-
-    map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
-  });
-
-  // Area calculations using Turf
+  // ✅ Area Measurement Logic
   map.on('draw.create', updateArea);
   map.on('draw.update', updateArea);
   map.on('draw.delete', clearArea);
