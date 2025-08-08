@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - 3D + m² Area</title>
+  <title>Generative Masterplanner - Density Calculation</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
   <!-- Mapbox GL JS -->
@@ -13,7 +13,7 @@
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
 
-  <!-- Turf.js for geospatial calculations -->
+  <!-- Turf.js for geometry calculations -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <style>
@@ -30,10 +30,22 @@
       font-size: 14px;
       border-radius: 4px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      z-index: 1;
     }
 
     .mapbox-gl-draw_ctrl-top-left {
       top: 60px !important;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+    }
+
+    input[type="number"] {
+      width: 60px;
+      padding: 2px;
     }
   </style>
 </head>
@@ -42,10 +54,15 @@
 <!-- Map container -->
 <div id="map"></div>
 
-<!-- Area display -->
+<!-- Area and Density UI -->
 <div class="calculation-box">
-  <p>Click the map to draw a polygon.</p>
-  <div id="calculated-area"></div>
+  <p>Area: <span id="area-m2">0</span> m²</p>
+  <p>Hectares: <span id="area-ha">0</span> ha</p>
+
+  <label for="target-density">Target Density (homes/ha):</label>
+  <input type="number" id="target-density" value="40" min="1" />
+
+  <p>Estimated Homes: <strong id="estimated-units">0</strong></p>
 </div>
 
 <script>
@@ -61,7 +78,6 @@
     projection: 'globe'
   });
 
-  // Initialize drawing tool
   const draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: {
@@ -77,19 +93,27 @@
   map.on('draw.create', updateArea);
   map.on('draw.update', updateArea);
   map.on('draw.delete', updateArea);
+  document.getElementById('target-density').addEventListener('input', updateArea);
 
-  function updateArea(e) {
+  function updateArea() {
     const data = draw.getAll();
-    const answer = document.getElementById('calculated-area');
+    const areaM2 = document.getElementById('area-m2');
+    const areaHa = document.getElementById('area-ha');
+    const unitDisplay = document.getElementById('estimated-units');
+
     if (data.features.length > 0) {
-      const area = turf.area(data); // in m²
-      const squareMeters = Math.round(area).toLocaleString();
-      answer.innerHTML = `<p><strong>${squareMeters}</strong></p><p>m²</p>`;
+      const area = turf.area(data); // m²
+      const hectares = area / 10000;
+      const density = parseFloat(document.getElementById('target-density').value);
+
+      areaM2.textContent = Math.round(area).toLocaleString();
+      areaHa.textContent = hectares.toFixed(2);
+      unitDisplay.textContent = Math.round(hectares * density).toLocaleString();
+
     } else {
-      answer.innerHTML = '';
-      if (e.type !== 'draw.delete') {
-        alert('Click the map to draw a polygon.');
-      }
+      areaM2.textContent = '0';
+      areaHa.textContent = '0';
+      unitDisplay.textContent = '0';
     }
   }
 </script>
