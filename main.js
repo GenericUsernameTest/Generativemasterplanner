@@ -2,10 +2,10 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpb
 
 const map = new mapboxgl.Map({
   container: 'map',
-  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n', // your custom style
-  center: [-0.16, 51.51],
-  zoom: 15,
-  pitch: 60,
+  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
+  center: [0, 20], // mid-Atlantic for global-ish view
+  zoom: 2,         // low zoom = zoomed out
+  pitch: 0,        // flat
   bearing: 0
 });
 
