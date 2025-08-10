@@ -2,34 +2,32 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - 40 Homes/ha + 3D Basemap</title>
+  <title>Generative Masterplanner – Draw + 3D + 40 homes/ha</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <!-- Mapbox GL JS -->
+  <!-- Mapbox GL JS v3 -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
 
-  <!-- Turf + Draw -->
+  <!-- Turf + Mapbox Draw -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
   <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" />
 
   <style>
-    body { margin:0; padding:0; }
+    body { margin:0; }
     #map { position:absolute; inset:0; }
-    .info-box {
-      position:absolute; bottom:30px; left:20px;
-      background:#fff; padding:15px; font:14px/1.4 sans-serif;
-      border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.25);
+    .info {
+      position:absolute; left:16px; bottom:16px;
+      background:#fff; padding:12px; font:14px/1.4 sans-serif;
+      border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.2);
+      max-width:240px;
     }
-    .info-box strong { font-size:16px; }
   </style>
 </head>
 <body>
 <div id="map"></div>
-<div class="info-box" id="stats">
-  <p><strong>Draw a polygon</strong> to place homes (40/ha). Each home is 7×7 m.</p>
-</div>
+<div class="info" id="stats">Draw a polygon to place homes (40/ha).</div>
 
 <script>
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
@@ -38,45 +36,50 @@ const map = new mapboxgl.Map({
   container: 'map',
   style: 'mapbox://styles/mapbox/light-v11',
   center: [-0.13, 51.505],
-  zoom: 16,
-  pitch: 60,          // tilt so 3D is visible
+  zoom: 16,          // ≥15 to see 3D buildings
+  pitch: 60,
   bearing: -15,
-  projection: 'globe' // natural globe
+  projection: 'globe'
 });
 
 map.addControl(new mapboxgl.NavigationControl());
 
-/* ---------- ENABLE 3D BASEMAP (terrain + buildings) ---------- */
+// ---- Draw control (toolbar at top-left) ----
+const draw = new MapboxDraw({
+  displayControlsDefault: false,
+  controls: { polygon: true, trash: true },
+  defaultMode: 'simple_select'
+});
+map.addControl(draw);
+
+// ---- Enable 3D basemap (terrain + buildings) ----
 map.on('style.load', () => {
-  // Sky/fog for depth
   map.setFog({});
 
-  // Terrain (DEM)
-  map.addSource('mapbox-dem', {
-    type: 'raster-dem',
-    url: 'mapbox://mapbox.terrain-rgb',
-    tileSize: 512,
-    maxzoom: 14
-  });
+  // Terrain
+  if (!map.getSource('mapbox-dem')) {
+    map.addSource('mapbox-dem', {
+      type: 'raster-dem',
+      url: 'mapbox://mapbox.terrain-rgb',
+      tileSize: 512,
+      maxzoom: 14
+    });
+  }
   map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
 
-  // Insert 3D buildings for light-v11
-  // Find the first symbol layer with text to place buildings beneath labels
+  // Insert 3D buildings below labels
   const layers = map.getStyle().layers;
   let labelLayerId = null;
   for (const l of layers) {
-    if (l.type === 'symbol' && l.layout && l.layout['text-field']) {
-      labelLayerId = l.id; break;
-    }
+    if (l.type === 'symbol' && l.layout && l.layout['text-field']) { labelLayerId = l.id; break; }
   }
-
-  if (!map.getLayer('add-3d-buildings')) {
+  if (!map.getLayer('3d-buildings')) {
     map.addLayer({
-      id: 'add-3d-buildings',
+      id: '3d-buildings',
       source: 'composite',
       'source-layer': 'building',
-      filter: ['==', 'extrude', 'true'],
       type: 'fill-extrusion',
+      filter: ['==', 'extrude', 'true'],
       minzoom: 15,
       paint: {
         'fill-extrusion-color': '#aaa',
@@ -87,4 +90,84 @@ map.on('style.load', () => {
     }, labelLayerId || undefined);
   }
 
-  // Your homes source/layer (3
+  // Homes source/layer (your little 3D blocks)
+  if (!map.getSource('homes')) {
+    map.addSource('homes', { type: 'geojson', data: turf.featureCollection([]) });
+    map.addLayer({
+      id: 'homes',
+      type: 'fill-extrusion',
+      source: 'homes',
+      paint: {
+        'fill-extrusion-color': '#6699ff',
+        'fill-extrusion-height': 10,
+        'fill-extrusion-base': 0,
+        'fill-extrusion-opacity': 0.75
+      }
+    });
+  }
+});
+
+// ---- Draw callbacks ----
+map.on('draw.create', updateHomes);
+map.on('draw.update', updateHomes);
+map.on('draw.delete', () => {
+  map.getSource('homes').setData(turf.featureCollection([]));
+  document.getElementById('stats').textContent = 'Draw a polygon to place homes (40/ha).';
+});
+
+// helpers: meters -> degrees at latitude
+function dLat(){ return 1/110540; }
+function dLon(lat){ return 1/(111320*Math.cos(lat*Math.PI/180)); }
+
+function updateHomes() {
+  const feature = draw.getAll().features[0];
+  if (!feature) return;
+
+  const area = turf.area(feature);
+  const ha = area / 10000;
+  const target = Math.floor(ha * 40);  // 40 homes/ha
+
+  // sizes (meters)
+  const homeSizeM = 7;
+  const stepM = Math.sqrt(10000 / 40); // ~15.81m spacing
+
+  // convert to degrees at site latitude
+  const lat = turf.center(feature).geometry.coordinates[1];
+  const sizeLon = homeSizeM * dLon(lat), sizeLat = homeSizeM * dLat();
+  const stepLon = stepM * dLon(lat),     stepLat = stepM * dLat();
+
+  const bbox = turf.bbox(feature);
+  const homes = [];
+  let placed = 0;
+
+  for (let x = bbox[0]; x < bbox[2]; x += stepLon) {
+    for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
+      if (placed >= target) break;
+      const cx = x + stepLon/2, cy = y + stepLat/2;
+      if (turf.booleanPointInPolygon([cx, cy], feature)) {
+        const halfLon = sizeLon/2, halfLat = sizeLat/2;
+        homes.push(turf.polygon([[
+          [cx - halfLon, cy - halfLat],
+          [cx + halfLon, cy - halfLat],
+          [cx + halfLon, cy + halfLat],
+          [cx - halfLon, cy + halfLat],
+          [cx - halfLon, cy - halfLat]
+        ]]));
+        placed++;
+      }
+    }
+    if (placed >= target) break;
+  }
+
+  map.getSource('homes').setData(turf.featureCollection(homes));
+
+  document.getElementById('stats').innerHTML = `
+    <strong>Area:</strong> ${Math.round(area).toLocaleString()} m²<br>
+    <strong>Hectares:</strong> ${ha.toFixed(2)} ha<br>
+    <strong>Homes placed:</strong> ${placed}<br>
+    <strong>Actual density:</strong> ${(placed/ha).toFixed(1)} homes/ha
+  `;
+}
+</script>
+</body>
+</html>
