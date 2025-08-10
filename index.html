@@ -2,36 +2,33 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner - 40 Homes/ha</title>
+  <title>Generative Masterplanner - 40 Homes/ha + 3D Basemap</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+
+  <!-- Mapbox GL JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
+
+  <!-- Turf + Draw -->
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" type="text/css">
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" />
+
   <style>
-    body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    body { margin:0; padding:0; }
+    #map { position:absolute; inset:0; }
     .info-box {
-      position: absolute;
-      bottom: 30px;
-      left: 20px;
-      background: white;
-      padding: 15px;
-      font-family: sans-serif;
-      font-size: 14px;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      position:absolute; bottom:30px; left:20px;
+      background:#fff; padding:15px; font:14px/1.4 sans-serif;
+      border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,.25);
     }
-    .info-box strong {
-      font-size: 16px;
-    }
+    .info-box strong { font-size:16px; }
   </style>
 </head>
 <body>
 <div id="map"></div>
 <div class="info-box" id="stats">
-  <p><strong>Draw a polygon</strong> to place homes.</p>
+  <p><strong>Draw a polygon</strong> to place homes (40/ha). Each home is 7×7 m.</p>
 </div>
 
 <script>
@@ -41,88 +38,53 @@ const map = new mapboxgl.Map({
   container: 'map',
   style: 'mapbox://styles/mapbox/light-v11',
   center: [-0.13, 51.505],
-  zoom: 15,
-  pitch: 60,
-  bearing: 0
+  zoom: 16,
+  pitch: 60,          // tilt so 3D is visible
+  bearing: -15,
+  projection: 'globe' // natural globe
 });
 
-const draw = new MapboxDraw({
-  displayControlsDefault: false,
-  controls: {
-    polygon: true,
-    trash: true
-  }
-});
-map.addControl(draw);
+map.addControl(new mapboxgl.NavigationControl());
 
-map.on('load', () => {
-  map.addSource('homes', { type: 'geojson', data: turf.featureCollection([]) });
+/* ---------- ENABLE 3D BASEMAP (terrain + buildings) ---------- */
+map.on('style.load', () => {
+  // Sky/fog for depth
+  map.setFog({});
 
-  map.addLayer({
-    id: 'homes',
-    type: 'fill-extrusion',
-    source: 'homes',
-    paint: {
-      'fill-extrusion-color': '#6699ff',
-      'fill-extrusion-height': 10,
-      'fill-extrusion-base': 0,
-      'fill-extrusion-opacity': 0.7
+  // Terrain (DEM)
+  map.addSource('mapbox-dem', {
+    type: 'raster-dem',
+    url: 'mapbox://mapbox.terrain-rgb',
+    tileSize: 512,
+    maxzoom: 14
+  });
+  map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.2 });
+
+  // Insert 3D buildings for light-v11
+  // Find the first symbol layer with text to place buildings beneath labels
+  const layers = map.getStyle().layers;
+  let labelLayerId = null;
+  for (const l of layers) {
+    if (l.type === 'symbol' && l.layout && l.layout['text-field']) {
+      labelLayerId = l.id; break;
     }
-  });
+  }
 
-  map.on('draw.create', update);
-  map.on('draw.update', update);
-  map.on('draw.delete', () => {
-    map.getSource('homes').setData(turf.featureCollection([]));
-    document.getElementById('stats').innerHTML = '<p><strong>Draw a polygon</strong> to place homes.</p>';
-  });
-});
-
-function update(e) {
-  const polygon = draw.getAll().features[0];
-  if (!polygon) return;
-
-  const areaM2 = turf.area(polygon);
-  const hectares = areaM2 / 10000;
-  const densityTarget = 40;
-  const targetHomes = Math.floor(densityTarget * hectares);
-
-  const homeSize = 7;
-  const spacing = 10;
-
-  const homes = [];
-  const bbox = turf.bbox(polygon);
-  let count = 0;
-
-  for (let x = bbox[0]; x < bbox[2]; x += spacing) {
-    for (let y = bbox[1]; y < bbox[3]; y += spacing) {
-      const pt = turf.point([x + homeSize / 2, y + homeSize / 2]);
-      if (turf.booleanPointInPolygon(pt, polygon)) {
-        const home = turf.polygon([[
-          [x, y],
-          [x + homeSize, y],
-          [x + homeSize, y + homeSize],
-          [x, y + homeSize],
-          [x, y]
-        ]]);
-        homes.push(home);
-        count++;
-        if (count >= targetHomes) break;
+  if (!map.getLayer('add-3d-buildings')) {
+    map.addLayer({
+      id: 'add-3d-buildings',
+      source: 'composite',
+      'source-layer': 'building',
+      filter: ['==', 'extrude', 'true'],
+      type: 'fill-extrusion',
+      minzoom: 15,
+      paint: {
+        'fill-extrusion-color': '#aaa',
+        'fill-extrusion-height': ['coalesce', ['get', 'height'], 5],
+        'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
+        'fill-extrusion-opacity': 0.6
       }
-    }
-    if (count >= targetHomes) break;
+    }, labelLayerId || undefined);
   }
 
-  map.getSource('homes').setData(turf.featureCollection(homes));
-
-  const statsHTML = `
-    <p><strong>Area:</strong><br>${areaM2.toLocaleString()} m²</p>
-    <p><strong>Hectares:</strong><br>${hectares.toFixed(2)} ha</p>
-    <p><strong>Homes placed:</strong><br>${count}</p>
-    <p><strong>Actual density:</strong><br>${(count / hectares).toFixed(1)} homes/ha</p>
-  `;
-  document.getElementById('stats').innerHTML = statsHTML;
-}
-</script>
-</body>
-</html>
+  // Your homes source/layer (3
