@@ -2,73 +2,40 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner – Two Stages</title>
+  <title>Generative Masterplanner – Boundary, Roads & Homes</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
   <!-- Mapbox CSS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
 
+  <!-- Geocoder CSS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
+
   <!-- App CSS -->
-  <link href="styles.css" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div id="map"></div>
 
-  <!-- Toolbar -->
   <div id="toolbar">
-    <button id="confirmSite">Confirm Site</button>
+    <button id="drawSite">Draw Site Boundary</button>
+    <button id="drawRoads">Draw Roads</button>
     <button id="fillHomes">Fill with Homes</button>
+    <button id="clearAll">Clear All</button>
   </div>
 
   <div class="info-box" id="stats">
-    <p><strong>Draw a polygon</strong> to place homes (40/ha).</p>
-  </div>
-</body>
-  
-  <div class="panel">
-    <div class="section">
-      <div class="title">Stage 1 — Define Site</div>
-      <div class="row">
-        <button id="btnDraw">Start drawing</button>
-        <button id="btnClear">Clear drawing</button>
-      </div>
-      <div class="row">
-        <input id="siteName" placeholder="Site name (e.g. Plot A)" />
-        <button id="btnSaveSite">Save site</button>
-      </div>
-      <div class="hint">Draw a polygon, give it a name, and click “Save site”.</div>
-    </div>
-
-    <div class="section">
-      <div class="title">Stage 2 — Generate Layout</div>
-      <div class="row">
-        <select id="siteSelect"></select>
-        <button id="btnLoadSite">Load site</button>
-      </div>
-      <div class="row">
-        <label>House type:</label>
-        <select id="houseType">
-          <option value="type1" selected>House Type 1 (7×7 m, ~40/ha)</option>
-        </select>
-      </div>
-      <div class="row">
-        <button id="btnGenerate">Generate homes</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="title">Stats</div>
-      <div id="stats">Waiting…</div>
-    </div>
+    <p><strong>Draw the site boundary first.</strong></p>
   </div>
 
-  <!-- Mapbox + Draw + Turf -->
+  <!-- Mapbox JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.min.js"></script>
 
   <!-- App JS -->
-  <script src="main.js" defer></script>
+  <script src="main.js"></script>
 </body>
 </html>
