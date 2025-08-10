@@ -15,7 +15,7 @@ const map = new mapboxgl.Map({
   bearing: typeof savedView.bearing === 'number' ? savedView.bearing : 0
 });
 
-map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+// Save view on move end
 map.on('moveend', () => {
   localStorage.setItem('mapView', JSON.stringify({
     center: map.getCenter().toArray(),
@@ -25,38 +25,62 @@ map.on('moveend', () => {
   }));
 });
 
-// Geocoder
-const geocoder = new MapboxGeocoder({
-  accessToken: mapboxgl.accessToken,
-  mapboxgl,
-  marker: false,
-  placeholder: 'Search for a place',
-  types: 'place,postcode,address,poi',
-  language: 'en'
-});
-map.addControl(geocoder, 'top-left');
+// Controls
+map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
-// --- State ---
-let draw;                 // created on map load
-let siteBoundary = null;  // Feature (Polygon)
-let roads = [];           // Array<Feature<Polygon>>
+// Geocoder (guarded — won’t crash if script failed to load)
+if (typeof MapboxGeocoder !== 'undefined') {
+  const geocoder = new MapboxGeocoder({
+    accessToken: mapboxgl.accessToken,
+    mapboxgl,
+    marker: false,
+    placeholder: 'Search for a place',
+    types: 'place,postcode,address,poi',
+    language: 'en'
+  });
+  map.addControl(geocoder, 'top-left');
+  geocoder.on('result', (e) => {
+    map.easeTo({ center: e.result.center, zoom: 16, pitch: 60, bearing: -15 });
+  });
+} else {
+  console.warn('MapboxGeocoder script not loaded — search disabled.');
+}
 
-// Utility
+// ---- State ----
+let draw;                  // Mapbox Draw instance (created on load)
+let siteBoundary = null;   // Feature<Polygon>
+let roads = [];            // Feature<Polygon>[]
 const $ = (id) => document.getElementById(id);
 const setStats = (html) => { const el = $('stats'); if (el) el.innerHTML = html; };
 
-// SAFETY: init everything after the map is fully loaded
+// Init everything after map is fully ready
 map.on('load', () => {
-  // Sources/Layers
-  map.addSource('homes', { type: 'geojson', data: turf.featureCollection([]) });
+  // Sources/layers
+  map.addSource('site-view', { type: 'geojson', data: emptyFC() });
+  map.addLayer({
+    id: 'site-view',
+    type: 'line',
+    source: 'site-view',
+    paint: { 'line-color': '#16a34a', 'line-width': 3 }
+  });
+
+  map.addSource('roads-view', { type: 'geojson', data: emptyFC() });
+  map.addLayer({
+    id: 'roads-view',
+    type: 'fill',
+    source: 'roads-view',
+    paint: { 'fill-color': '#9ca3af', 'fill-opacity': 0.6 }
+  });
+
+  map.addSource('homes', { type: 'geojson', data: emptyFC() });
   map.addLayer({
     id: 'homes',
     type: 'fill-extrusion',
     source: 'homes',
     paint: {
       'fill-extrusion-color': '#6699ff',
-      'fill-extrusion-height': 10,
-      'fill-extrusion-opacity': 0.7
+      'fill-extrusion-height': ['coalesce', ['get','height'], 10],
+      'fill-extrusion-opacity': 0.75
     }
   });
 
@@ -67,14 +91,40 @@ map.on('load', () => {
   });
   map.addControl(draw);
 
-  // Debug: verify clicks reach the map
-  map.on('click', (e) => console.log('map click', e.lngLat.toArray()));
+  // Wire toolbar AFTER draw exists
+  wireToolbar();
 
-  // BUTTONS — wire AFTER draw exists
+  // Finish polygons with double‑click; reset cursor on mode change
+  map.on('draw.modechange', () => map.getCanvas().style.cursor = '');
+
+  // When a polygon is created, decide if it's site or a road
+  map.on('draw.create', (e) => {
+    const feat = e.features[0];
+    if (!feat || feat.geometry.type !== 'Polygon') return;
+
+    if (!siteBoundary) {
+      siteBoundary = feat;
+      refreshSite();
+      setStats('<p>Site boundary saved. Click <b>Draw Roads</b> to add one or more road polygons, then <b>Fill with Homes</b>.</p>');
+    } else {
+      roads.push(feat);
+      refreshRoads();
+      setStats(`<p>Road added. Total roads: ${roads.length}. Click <b>Fill with Homes</b> when ready.</p>`);
+    }
+    draw.deleteAll(); // clear the scratch layer
+    map.getCanvas().style.cursor = '';
+  });
+});
+
+// -------- Toolbar wiring --------
+function wireToolbar() {
   $('drawSite').onclick = () => {
     draw.deleteAll();
     siteBoundary = null;
     roads = [];
+    refreshSite();
+    refreshRoads();
+    clearHomes();
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
     setStats('<p>Drawing site boundary… click to add points, double‑click to finish.</p>');
@@ -84,7 +134,7 @@ map.on('load', () => {
     if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing roads… click to add points, double‑click to finish. Click “Fill with Homes” when ready.</p>');
+    setStats('<p>Drawing roads… add one or more polygons inside the site, double‑click to finish each.</p>');
   };
 
   $('fillHomes').onclick = () => fillHomes();
@@ -93,87 +143,90 @@ map.on('load', () => {
     draw.deleteAll();
     siteBoundary = null;
     roads = [];
-    if (map.getSource('homes')) map.getSource('homes').setData(turf.featureCollection([]));
+    refreshSite();
+    refreshRoads();
+    clearHomes();
     setStats('<p><strong>Draw the site boundary first.</strong></p>');
   };
+}
 
-  // CAPTURE new polygons
-  map.on('draw.create', (e) => {
-    const feature = e.features[0];
-    if (!feature || feature.geometry.type !== 'Polygon') return;
+// -------- Rendering helpers --------
+function refreshSite() {
+  map.getSource('site-view').setData(siteBoundary ? fc([siteBoundary]) : emptyFC());
+}
 
-    if (!siteBoundary) {
-      siteBoundary = feature;
-      setStats('<p>Site boundary saved. Now click “Draw Roads”.</p>');
-    } else {
-      roads.push(feature);
-      setStats(`<p>Road added. Total roads: ${roads.length}. Click “Fill with Homes” when ready.</p>`);
-    }
-    // reset cursor when a shape finishes
-    map.getCanvas().style.cursor = '';
-  });
+function refreshRoads() {
+  map.getSource('roads-view').setData(roads.length ? fc(roads) : emptyFC());
+}
 
-  // When mode changes (e.g., after double‑click), reset cursor
-  map.on('draw.modechange', () => { map.getCanvas().style.cursor = ''; });
-});
+function clearHomes() {
+  map.getSource('homes').setData(emptyFC());
+}
 
-// --- Fill with Homes (site minus roads) ---
+function fc(features) { return { type: 'FeatureCollection', features }; }
+function emptyFC() { return { type: 'FeatureCollection', features: [] }; }
+
+// -------- Geometry helpers --------
+function unionAll(features) {
+  if (!features.length) return null;
+  let u = features[0];
+  for (let i = 1; i < features.length; i++) {
+    try { u = turf.union(u, features[i]); }
+    catch (err) { console.warn('union failed on feature', i, err); }
+  }
+  return u;
+}
+
+// -------- Home generation --------
 function fillHomes() {
-  if (!siteBoundary) {
-    alert('Draw the site boundary first.');
-    return;
-  }
+  if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
-  // Buildable = site - union(roads)
+  // Buildable = site − union(roads)
   let buildable = siteBoundary;
-  if (roads.length > 0) {
-    let union = roads[0];
-    for (let i = 1; i < roads.length; i++) {
-      try { union = turf.union(union, roads[i]); }
-      catch (err) { console.warn('union failed, skipping a road', err); }
-    }
-    try { buildable = turf.difference(siteBoundary, union) || siteBoundary; }
-    catch (err) { console.warn('difference failed, using site as buildable', err); }
+  if (roads.length) {
+    const roadsU = unionAll(roads);
+    try { buildable = turf.difference(siteBoundary, roadsU) || siteBoundary; }
+    catch (err) { console.warn('difference failed; using site as buildable', err); }
   }
 
-  // Generate homes
-  const density = 40;      // homes/ha
-  const homeSizeM = 7;     // footprint size
-  const stepM = Math.sqrt(10000 / density); // grid pitch for target density
+  const density = 40;      // homes per hectare
+  const homeSizeM = 7;     // 7×7 m footprints
+  const stepM = Math.sqrt(10000 / density); // grid pitch to hit target density
 
   const areaM2 = turf.area(buildable);
   const ha = areaM2 / 10000;
 
+  // meters → degrees at site latitude
   const lat = turf.center(buildable).geometry.coordinates[1];
   const dLat = 1 / 110540;
   const dLon = 1 / (111320 * Math.cos(lat * Math.PI / 180));
   const sizeLon = homeSizeM * dLon, sizeLat = homeSizeM * dLat;
   const stepLon = stepM * dLon, stepLat = stepM * dLat;
 
+  // Grid sampling
   const bbox = turf.bbox(buildable);
   const homes = [];
   for (let x = bbox[0]; x < bbox[2]; x += stepLon) {
     for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
       const cx = x + stepLon / 2, cy = y + stepLat / 2;
       if (turf.booleanPointInPolygon([cx, cy], buildable)) {
-        homes.push(turf.polygon([[
+        const poly = turf.polygon([[
           [cx - sizeLon / 2, cy - sizeLat / 2],
           [cx + sizeLon / 2, cy - sizeLat / 2],
           [cx + sizeLon / 2, cy + sizeLat / 2],
           [cx - sizeLon / 2, cy + sizeLat / 2],
           [cx - sizeLon / 2, cy - sizeLat / 2]
-        ]]));
+        ]], { height: 10 });
+        homes.push(poly);
       }
     }
   }
 
-  if (map.getSource('homes')) {
-    map.getSource('homes').setData(turf.featureCollection(homes));
-  }
+  map.getSource('homes').setData(fc(homes));
 
   setStats(`
     <p><strong>Buildable area:</strong> ${Math.round(areaM2).toLocaleString()} m² (${ha.toFixed(2)} ha)</p>
     <p><strong>Homes placed:</strong> ${homes.length}</p>
-    <p><strong>Density:</strong> ${(homes.length / ha || 0).toFixed(1)} homes/ha</p>
+    <p><strong>Actual density:</strong> ${(homes.length / ha || 0).toFixed(1)} homes/ha</p>
   `);
 }
