@@ -193,8 +193,8 @@ function fillHomes() {
     placementArea = buildable;
   }
 
-  const areaM2 = turf.area(buildable);
-  const ha     = areaM2 / 10000;
+const areaM2 = turf.area(placementArea);
+const ha     = areaM2 / 10000;
   const stepM  = Math.sqrt(10000 / density); // grid pitch for ~target density
 
   // meters → degrees at site latitude
