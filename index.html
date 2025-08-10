@@ -1,138 +1,62 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Generative Masterplanner - 40 Homes/ha</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+function updateHomes() {
+  const feature = draw.getAll().features[0];
+  if (!feature) return;
 
-  <!-- Mapbox & Plugins -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" type="text/css">
+  const area = turf.area(feature);
+  const ha = area / 10000;
+  const target = Math.floor(ha * 40);   // 40 homes/ha
 
-  <style>
-    body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-    .info-box {
-      position: absolute;
-      bottom: 30px;
-      left: 20px;
-      background: white;
-      padding: 15px;
-      font-family: sans-serif;
-      font-size: 14px;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-      max-width: 220px;
-    }
-    .info-box strong {
-      font-size: 16px;
-    }
-  </style>
-</head>
-<body>
-<div id="map"></div>
-<div class="info-box" id="stats">
-  <p><strong>Draw a polygon</strong> to place homes (40/ha).</p>
-</div>
+  // sizes (meters)
+  const homeSizeM = 7;
+  const stepM = Math.sqrt(10000 / 40);  // ≈15.81 m
 
-<script>
-mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
+  // meters -> degrees at site latitude
+  const lat = turf.center(feature).geometry.coordinates[1];
+  const dLat = 1 / 110540;
+  const dLon = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+  const sizeLon = homeSizeM * dLon, sizeLat = homeSizeM * dLat;
+  const stepLon = stepM * dLon,     stepLat = stepM * dLat;
 
-const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-  center: [-0.13, 51.505],
-  zoom: 15,
-  pitch: 60,
-  bearing: 0
-});
+  const bbox = turf.bbox(feature);
 
-// Enable Mapbox Draw (Polygon + Trash)
-const draw = new MapboxDraw({
-  displayControlsDefault: false,
-  controls: { polygon: true, trash: true }
-});
-map.addControl(draw);
-
-// Add 3D terrain
-map.on('load', () => {
-  map.addSource('mapbox-dem', {
-    type: 'raster-dem',
-    url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-    tileSize: 512,
-    maxzoom: 14
-  });
-  map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.0 });
-
-  // Homes source/layer
-  map.addSource('homes', { type: 'geojson', data: turf.featureCollection([]) });
-  map.addLayer({
-    id: 'homes',
-    type: 'fill-extrusion',
-    source: 'homes',
-    paint: {
-      'fill-extrusion-color': '#6699ff',
-      'fill-extrusion-height': 10,
-      'fill-extrusion-opacity': 0.7
-    }
-  });
-
-  // Handle draw events
-  map.on('draw.create', update);
-  map.on('draw.update', update);
-  map.on('draw.delete', () => {
-    map.getSource('homes').setData(turf.featureCollection([]));
-    document.getElementById('stats').innerHTML = '<p><strong>Draw a polygon</strong> to place homes (40/ha).</p>';
-  });
-});
-
-function update() {
-  const polygon = draw.getAll().features[0];
-  if (!polygon) return;
-
-  const areaM2 = turf.area(polygon);
-  const hectares = areaM2 / 10000;
-  const densityTarget = 40;
-  const targetHomes = Math.floor(densityTarget * hectares);
-
-  const homeSize = 0.00007; // ~7m in degrees
-  const spacing = homeSize * 2;
-
-  const homes = [];
-  const bbox = turf.bbox(polygon);
-  let count = 0;
-
-  for (let x = bbox[0]; x < bbox[2]; x += spacing) {
-    for (let y = bbox[1]; y < bbox[3]; y += spacing) {
-      const pt = turf.point([x + homeSize / 2, y + homeSize / 2]);
-      if (turf.booleanPointInPolygon(pt, polygon)) {
-        const home = turf.polygon([[
-          [x, y],
-          [x + homeSize, y],
-          [x + homeSize, y + homeSize],
-          [x, y + homeSize],
-          [x, y]
-        ]]);
-        homes.push(home);
-        count++;
-        if (count >= targetHomes) break;
+  // 1) collect ALL candidate centers inside polygon
+  const candidates = [];
+  for (let x = bbox[0]; x < bbox[2]; x += stepLon) {
+    for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
+      const cx = x + stepLon/2, cy = y + stepLat/2;
+      if (turf.booleanPointInPolygon([cx, cy], feature)) {
+        candidates.push([cx, cy]);
       }
     }
-    if (count >= targetHomes) break;
   }
+
+  // 2) shuffle (Fisher–Yates) so selection distributes across the site
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+
+  // 3) take exactly N = target homes
+  const chosen = candidates.slice(0, target);
+
+  // 4) build 7×7 m squares at chosen centers
+  const homes = chosen.map(([cx, cy]) => {
+    const halfLon = sizeLon / 2, halfLat = sizeLat / 2;
+    return turf.polygon([[
+      [cx - halfLon, cy - halfLat],
+      [cx + halfLon, cy - halfLat],
+      [cx + halfLon, cy + halfLat],
+      [cx - halfLon, cy + halfLat],
+      [cx - halfLon, cy - halfLat]
+    ]]);
+  });
 
   map.getSource('homes').setData(turf.featureCollection(homes));
 
   document.getElementById('stats').innerHTML = `
-    <p><strong>Area:</strong><br>${areaM2.toLocaleString()} m²</p>
-    <p><strong>Hectares:</strong><br>${hectares.toFixed(2)} ha</p>
-    <p><strong>Homes placed:</strong><br>${count}</p>
-    <p><strong>Actual density:</strong><br>${(count / hectares).toFixed(1)} homes/ha</p>
+    <strong>Area:</strong> ${Math.round(area).toLocaleString()} m²<br>
+    <strong>Hectares:</strong> ${ha.toFixed(2)} ha<br>
+    <strong>Homes placed:</strong> ${homes.length}<br>
+    <strong>Actual density:</strong> ${(homes.length/ha).toFixed(1)} homes/ha
   `;
 }
-</script>
-</body>
-</html>
