@@ -43,7 +43,7 @@ if (typeof MapboxGeocoder !== 'undefined') {
 }
 
 // ====== STATE ======
-let draw;                  // Mapbox Draw instance
+let draw;                  // Mapbox Draw
 let siteBoundary = null;   // Feature<Polygon>
 let roads = [];            // Feature<Polygon>[]
 const $ = (id) => document.getElementById(id);
@@ -80,7 +80,7 @@ map.on('load', () => {
     }
   });
 
-  // Draw control
+  // Draw
   draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: { polygon: true, trash: true }
@@ -91,7 +91,6 @@ map.on('load', () => {
 
   map.on('draw.modechange', () => map.getCanvas().style.cursor = '');
 
-  // When a polygon is created, put it in site or roads
   map.on('draw.create', (e) => {
     const feat = e.features[0];
     if (!feat || feat.geometry.type !== 'Polygon') return;
@@ -162,7 +161,7 @@ function unionAll(features) {
   return u;
 }
 
-// ====== Home generation (no houses on roads, 4 m height) ======
+// ====== Home generation (rect width/depth + road avoidance) ======
 function fillHomes() {
   if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
@@ -174,16 +173,19 @@ function fillHomes() {
     catch (err) { console.warn('difference failed; using site as buildable', err); }
   }
 
-  // Parameters
-  const density     = 40;   // homes per hectare
-  const homeSizeM   = 7;    // 7×7 m footprint
-  const homeHeightM = 4;    // <<< set height here
-  const edgeMarginM = 0.5;  // extra clearance from edges/roads
+  // --------- PARAMETERS (edit these) ---------
+  const density      = 40;  // homes/ha (grid pitch derived from this)
+  const homeWidthM   = 6.5;  // <<< building width (meters)
+  const homeDepthM   = 10;   // building depth (meters)
+  const homeHeightM  = 4;   // extrusion height (meters)
+  const edgeMarginM  = 0.5; // clearance from roads/boundary
+  // -------------------------------------------
 
-  // Inset the buildable polygon so full homes fit inside
+  // Inset the buildable polygon so full homes fit inside (use larger half‑dimension)
+  const halfMax = Math.max(homeWidthM, homeDepthM) / 2;
   let placementArea;
   try {
-    placementArea = turf.buffer(buildable, -(homeSizeM/2 + edgeMarginM), { units: 'meters' });
+    placementArea = turf.buffer(buildable, -(halfMax + edgeMarginM), { units: 'meters' });
     if (!placementArea ||
         (placementArea.geometry.type !== 'Polygon' && placementArea.geometry.type !== 'MultiPolygon')) {
       placementArea = buildable; // fallback
@@ -193,16 +195,21 @@ function fillHomes() {
     placementArea = buildable;
   }
 
-const areaM2 = turf.area(placementArea);
-const ha     = areaM2 / 10000;
-  const stepM  = Math.sqrt(10000 / density); // grid pitch for ~target density
+  // Stats (gross buildable after roads)
+  const areaM2 = turf.area(buildable);
+  const ha     = areaM2 / 10000;
+
+  // Grid pitch from density (independent of footprint size so density target holds)
+  const stepM  = Math.sqrt(10000 / density);
 
   // meters → degrees at site latitude
-  const lat   = turf.center(buildable).geometry.coordinates[1];
-  const dLat  = 1 / 110540;
-  const dLon  = 1 / (111320 * Math.cos(lat * Math.PI / 180));
-  const sizeLon = homeSizeM * dLon, sizeLat = homeSizeM * dLat;
-  const stepLon = stepM * dLon,     stepLat = stepM * dLat;
+  const lat     = turf.center(buildable).geometry.coordinates[1];
+  const dLat    = 1 / 110540;
+  const dLon    = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+  const widthLon = homeWidthM * dLon;
+  const depthLat = homeDepthM * dLat;
+  const stepLon  = stepM * dLon;
+  const stepLat  = stepM * dLat;
 
   const bbox  = turf.bbox(buildable);
   const homes = [];
@@ -211,8 +218,8 @@ const ha     = areaM2 / 10000;
     for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
       const cx = x + stepLon / 2, cy = y + stepLat / 2;
 
-      // Build the home polygon first
-      const halfLon = sizeLon / 2, halfLat = sizeLat / 2;
+      // Rectangle centered at (cx, cy)
+      const halfLon = widthLon / 2, halfLat = depthLat / 2;
       const homePoly = turf.polygon([[
         [cx - halfLon, cy - halfLat],
         [cx + halfLon, cy - halfLat],
@@ -221,7 +228,7 @@ const ha     = areaM2 / 10000;
         [cx - halfLon, cy - halfLat]
       ]], { height: homeHeightM });
 
-      // Require the whole square to be inside the (possibly inset) placement area
+      // Require whole rectangle to be inside placement area
       if (turf.booleanWithin(homePoly, placementArea)) {
         homes.push(homePoly);
       }
