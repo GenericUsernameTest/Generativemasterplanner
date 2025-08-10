@@ -2,64 +2,137 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Mapbox Studio Style with Draw + Search</title>
+  <title>Generative Masterplanner - 40 Homes/ha</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <!-- Mapbox GL -->
+  <!-- Mapbox & Plugins -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
-
-  <!-- Draw -->
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-
-  <!-- Geocoder -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.min.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" type="text/css">
 
   <style>
-    body { margin:0; padding:0; }
-    #map { position:absolute; top:0; bottom:0; width:100%; }
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    .info-box {
+      position: absolute;
+      bottom: 30px;
+      left: 20px;
+      background: white;
+      padding: 15px;
+      font-family: sans-serif;
+      font-size: 14px;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      max-width: 220px;
+    }
+    .info-box strong {
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
-
 <div id="map"></div>
+<div class="info-box" id="stats">
+  <p><strong>Draw a polygon</strong> to place homes (40/ha).</p>
+</div>
 
 <script>
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-// Use your published Mapbox Studio style URL here:
-const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
-
 const map = new mapboxgl.Map({
   container: 'map',
-  style: STYLE_URL,
+  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
   center: [-0.13, 51.505],
   zoom: 15,
   pitch: 60,
-  bearing: -15
+  bearing: 0
 });
 
-// Navigation controls
-map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-// Geocoder (search bar)
-map.addControl(new MapboxGeocoder({
-  accessToken: mapboxgl.accessToken,
-  mapboxgl: mapboxgl
-}), 'top-left');
-
-// Draw tool
+// Enable Mapbox Draw (Polygon + Trash)
 const draw = new MapboxDraw({
   displayControlsDefault: false,
-  controls: {
-    polygon: true,
-    trash: true
-  }
+  controls: { polygon: true, trash: true }
 });
 map.addControl(draw);
-</script>
 
+// Add 3D terrain
+map.on('load', () => {
+  map.addSource('mapbox-dem', {
+    type: 'raster-dem',
+    url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+    tileSize: 512,
+    maxzoom: 14
+  });
+  map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.0 });
+
+  // Homes source/layer
+  map.addSource('homes', { type: 'geojson', data: turf.featureCollection([]) });
+  map.addLayer({
+    id: 'homes',
+    type: 'fill-extrusion',
+    source: 'homes',
+    paint: {
+      'fill-extrusion-color': '#6699ff',
+      'fill-extrusion-height': 10,
+      'fill-extrusion-opacity': 0.7
+    }
+  });
+
+  // Handle draw events
+  map.on('draw.create', update);
+  map.on('draw.update', update);
+  map.on('draw.delete', () => {
+    map.getSource('homes').setData(turf.featureCollection([]));
+    document.getElementById('stats').innerHTML = '<p><strong>Draw a polygon</strong> to place homes (40/ha).</p>';
+  });
+});
+
+function update() {
+  const polygon = draw.getAll().features[0];
+  if (!polygon) return;
+
+  const areaM2 = turf.area(polygon);
+  const hectares = areaM2 / 10000;
+  const densityTarget = 40;
+  const targetHomes = Math.floor(densityTarget * hectares);
+
+  const homeSize = 0.00007; // ~7m in degrees
+  const spacing = homeSize * 2;
+
+  const homes = [];
+  const bbox = turf.bbox(polygon);
+  let count = 0;
+
+  for (let x = bbox[0]; x < bbox[2]; x += spacing) {
+    for (let y = bbox[1]; y < bbox[3]; y += spacing) {
+      const pt = turf.point([x + homeSize / 2, y + homeSize / 2]);
+      if (turf.booleanPointInPolygon(pt, polygon)) {
+        const home = turf.polygon([[
+          [x, y],
+          [x + homeSize, y],
+          [x + homeSize, y + homeSize],
+          [x, y + homeSize],
+          [x, y]
+        ]]);
+        homes.push(home);
+        count++;
+        if (count >= targetHomes) break;
+      }
+    }
+    if (count >= targetHomes) break;
+  }
+
+  map.getSource('homes').setData(turf.featureCollection(homes));
+
+  document.getElementById('stats').innerHTML = `
+    <p><strong>Area:</strong><br>${areaM2.toLocaleString()} m²</p>
+    <p><strong>Hectares:</strong><br>${hectares.toFixed(2)} ha</p>
+    <p><strong>Homes placed:</strong><br>${count}</p>
+    <p><strong>Actual density:</strong><br>${(count / hectares).toFixed(1)} homes/ha</p>
+  `;
+}
+</script>
 </body>
 </html>
