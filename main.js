@@ -216,7 +216,7 @@ function fillHomes() {
           [cx + sizeLon / 2, cy + sizeLat / 2],
           [cx - sizeLon / 2, cy + sizeLat / 2],
           [cx - sizeLon / 2, cy - sizeLat / 2]
-        ]], { height: 5 });
+        ]], { height: 4 });
         homes.push(poly);
       }
     }
