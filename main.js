@@ -15,7 +15,7 @@ const map = new mapboxgl.Map({
   bearing: typeof savedView.bearing === 'number' ? savedView.bearing : 0
 });
 
-map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 map.on('moveend', () => {
   localStorage.setItem('mapView', JSON.stringify({
     center: map.getCenter().toArray(),
