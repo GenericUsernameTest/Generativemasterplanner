@@ -41,3 +41,22 @@ input, select {
   min-width: 0;
 }
 #stats { font-size: 13px; color: #111; }
+
+#toolbar {
+  position: absolute;
+  top: 100px; /* Below search bar */
+  right: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  z-index: 2;
+}
+
+#toolbar button {
+  display: block;
+  margin: 5px 0;
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
