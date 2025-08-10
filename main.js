@@ -25,6 +25,29 @@ map.on('moveend', () => {
   }));
 });
 
+// Search (Geocoder)
+const geocoder = new MapboxGeocoder({
+  accessToken: mapboxgl.accessToken,
+  mapboxgl,
+  marker: false,                 // don't drop a marker
+  placeholder: 'Search for a place',
+  countries: 'gb',               // limit to UK (remove to search globally)
+  types: 'place,postcode,address,poi', // what to search
+  language: 'en'
+});
+
+
+// Put it top-left so it doesn't clash with your panel/nav
+map.addControl(geocoder, 'top-left');
+
+// Optional: zoom to a nice 3D view when a result is chosen
+geocoder.on('result', (e) => {
+  const center = e.result.center;
+  map.easeTo({ center, zoom: 16, pitch: 60, bearing: -15 });
+  // Your moveend handler will save this view to localStorage automatically
+});
+
+
 // Draw tool
 const draw = new MapboxDraw({
   displayControlsDefault: false,
