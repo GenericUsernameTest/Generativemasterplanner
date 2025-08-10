@@ -2,7 +2,7 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpb
 
 const map = new mapboxgl.Map({
   container: 'map',
-  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
+  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n', // your custom style
   center: [-0.16, 51.51],
   zoom: 15,
   pitch: 60,
