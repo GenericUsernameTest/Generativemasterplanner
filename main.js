@@ -1,4 +1,6 @@
-// main.js
+// main.js (very top)
+import { fillHomesOrientedToRoads } from './homes.js';
+
 
 // ========= CONFIG =========
 mapboxgl.accessToken =
