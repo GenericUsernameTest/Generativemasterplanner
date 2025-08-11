@@ -57,7 +57,7 @@ map.on('load', () => {
     id: 'site-view',
     type: 'line',
     source: 'site-view',
-    paint: { 'line-color': '#16a34a', 'line-width': 10 }
+    paint: { 'line-color': '#16a34a', 'line-width': 10 } // final saved boundary thickness
   });
 
   map.addSource('roads-view', { type: 'geojson', data: emptyFC() });
@@ -80,41 +80,46 @@ map.on('load', () => {
     }
   });
 
-draw = new MapboxDraw({
-  displayControlsDefault: false,
-  controls: { polygon: true, trash: true },
-  styles: MapboxDraw.styles.map(style => {
-    // Active drawing outline (normally green dashed)
-    if (style.id === 'gl-draw-polygon-stroke-active') {
-      return {
-        ...style,
-        paint: {
-          'line-color': '#16a34a', // same green as final site
-          'line-width': 4
-        }
-      };
-    }
+  // ---- Draw (no custom styles here; we’ll tweak after) ----
+  draw = new MapboxDraw({
+    displayControlsDefault: false,
+    controls: { polygon: true, trash: true }
+  });
+  map.addControl(draw);
 
-    // Inactive polygon outline (normally orange)
-    if (style.id === 'gl-draw-polygon-stroke-inactive') {
-      return {
-        ...style,
-        paint: {
-          'line-color': '#16a34a', // match final boundary color
-          'line-width': 4
-        }
-      };
-    }
+  // Tweak Mapbox Draw layer styles safely (after they exist)
+  const tuneDrawStyles = () => {
+    const edits = [
+      // Active polygon stroke (green while drawing)
+      ['gl-draw-polygon-stroke-active',   'line-color', '#16a34a'],
+      ['gl-draw-polygon-stroke-active',   'line-width', 4],
 
-    return style;
-  })
-});
-map.addControl(draw);
+      // Inactive polygon stroke (orange by default)
+      ['gl-draw-polygon-stroke-inactive', 'line-color', '#16a34a'],
+      ['gl-draw-polygon-stroke-inactive', 'line-width', 4],
+
+      // Optional: soften inactive fill
+      ['gl-draw-polygon-fill-inactive',   'fill-color', '#16a34a'],
+      ['gl-draw-polygon-fill-inactive',   'fill-opacity', 0.04]
+    ];
+    edits.forEach(([id, prop, val]) => {
+      if (map.getLayer(id)) {
+        try { map.setPaintProperty(id, prop, val); } catch(e) {}
+      }
+    });
+  };
+
+  // Run once now, and again if the style reloads or modes change
+  tuneDrawStyles();
+  map.on('styledata', tuneDrawStyles);
+  map.on('draw.modechange', () => {
+    map.getCanvas().style.cursor = '';
+    tuneDrawStyles();
+  });
 
   wireToolbar();
 
-  map.on('draw.modechange', () => map.getCanvas().style.cursor = '');
-
+  // When a polygon is created, decide if it's site or a road
   map.on('draw.create', (e) => {
     const feat = e.features[0];
     if (!feat || feat.geometry.type !== 'Polygon') return;
@@ -144,14 +149,14 @@ function wireToolbar() {
     clearHomes();
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing site boundary… click to add points, double-click to finish.</p>');
+    setStats('<p>Drawing site boundary… click to add points, double‑click to finish.</p>');
   };
 
   $('drawRoads').onclick = () => {
     if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing roads… add one or more polygons inside the site, double-click to finish each.</p>');
+    setStats('<p>Drawing roads… add one or more polygons inside the site, double‑click to finish each.</p>');
   };
 
   $('fillHomes').onclick = () => fillHomes();
@@ -163,6 +168,7 @@ function wireToolbar() {
     refreshSite();
     refreshRoads();
     clearHomes();
+    // leave stats empty
   };
 }
 
