@@ -57,7 +57,7 @@ map.on('load', () => {
     id: 'site-view',
     type: 'line',
     source: 'site-view',
-    paint: { 'line-color': '#16a34a', 'line-width': 10 } // final saved boundary thickness
+    paint: { 'line-color': '#16a34a', 'line-width': 4 } // final saved boundary thickness
   });
 
   map.addSource('roads-view', { type: 'geojson', data: emptyFC() });
