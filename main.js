@@ -103,29 +103,41 @@ map.on('load', () => {
   wireToolbar();
 
   // When a polygon is created, decide if it's the site or a road
-  map.on('draw.create', (e) => {
-    const feat = e.features[0];
-    if (!feat || feat.geometry.type !== 'Polygon') return;
+map.on('draw.create', (e) => {
+  const feat = e.features[0];
+  if (!feat || feat.geometry.type !== 'Polygon') return;
 
-    if (!siteBoundary) {
-      siteBoundary = feat;
-      refreshSite();
+  if (!siteBoundary) {
+    siteBoundary = feat;
+    refreshSite();
 
-      // Pre-fill rotation input with detected longest-edge angle (handy to tweak)
-      const autoAngle = getLongestEdgeAngle(siteBoundary);
-      const angleInput = $('rotationAngle');
-      if (angleInput) angleInput.value = autoAngle.toFixed(1);
+    // Pre-fill rotation input with detected longest-edge angle (handy to tweak)
+    const autoAngle = getLongestEdgeAngle(siteBoundary);
+    const angleInput = $('rotationAngle');
+    if (angleInput) angleInput.value = autoAngle.toFixed(1);
 
-      setStats('<p>Site boundary saved. Click <b>Draw Roads</b> to add road polygons, then <b>Fill with Homes</b>.</p>');
-    } else {
-      roads.push(feat);
-      refreshRoads();
-      setStats(`<p>Road added. Total roads: ${roads.length}. Click <b>Fill with Homes</b> when ready.</p>`);
-    }
-    draw.deleteAll();
-    map.getCanvas().style.cursor = '';
-  });
+    setStats('<p>Site boundary saved. Click <b>Draw Roads</b> to add road polygons, then <b>Fill with Homes</b>.</p>');
+  } else {
+    roads.push(feat);
+    refreshRoads();
+    setStats(`<p>Road added. Total roads: ${roads.length}. Click <b>Fill with Homes</b> when ready.</p>`);
+  }
+
+  draw.deleteAll();
+  map.getCanvas().style.cursor = '';
 });
+
+// Hook up manual rotation changes
+const angleInput = $('rotationAngle');
+if (angleInput) {
+  ['change', 'input'].forEach(evt => {
+    angleInput.addEventListener(evt, () => {
+      if (siteBoundary) {
+        fillHomes(); // Re-generate with new angle
+      }
+    });
+  });
+}
 
 // ====== Draw style tweaks ======
 function tuneDrawStyles() {
