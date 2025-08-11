@@ -76,7 +76,7 @@ export function generateMasterplan(siteBoundary, opts) {
         const bearing = turf.bearing(p1, p2);
         const mid = turf.along(bl, t + W/2, { units: 'meters' }).geometry.coordinates;
 
-        const rect = orientedRect(mid, bearing, W, D);
+        const rect = orientedRect(mid, bearing +90, W, D);
 
         // tolerant acceptance: centroid inside buildable; not intersecting roads
         const c = turf.centroid(rect);
