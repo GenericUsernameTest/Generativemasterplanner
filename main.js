@@ -122,17 +122,16 @@ map.on('load', () => {
       refreshRoads();
       setStats(`<p>Road added. Total roads: ${roads.length}. Click <b>Fill with Homes</b> when ready.</p>`);
     }
-
     draw.deleteAll();
     map.getCanvas().style.cursor = '';
   });
 
-  // Hook up manual rotation changes (re-generate instantly)
+  // Hook up manual rotation changes
   const angleInput = $('rotationAngle');
   if (angleInput) {
     ['change', 'input'].forEach(evt => {
       angleInput.addEventListener(evt, () => {
-        if (siteBoundary) fillHomes();
+        if (siteBoundary) fillHomes(); // re-generate with new angle
       });
     });
   }
@@ -185,6 +184,7 @@ function wireToolbar() {
     refreshSite();
     refreshRoads();
     clearHomes();
+    setStats('');
   };
 }
 
@@ -205,6 +205,7 @@ function unionAll(features) {
   }
   return u;
 }
+
 function getLongestEdgeAngle(polygon) {
   const coords = polygon.geometry.coordinates[0];
   let longestAngle = 0, longestDist = 0;
@@ -220,7 +221,7 @@ function getLongestEdgeAngle(polygon) {
   return longestAngle;
 }
 
-// ====== Home generation (fronts along longest edge, rows start at that edge) ======
+// ====== Home generation (front = short edge along boundary) ======
 function fillHomes() {
   if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
@@ -233,19 +234,21 @@ function fillHomes() {
   }
 
   // --------- PARAMETERS ---------
-  const homeWidthM   = 6.5;  // short side (front) runs ALONG the edge
-  const homeDepthM   = 10;   // long side goes INWARD
-  const homeHeightM  = 4;    // extrusion height (m)
-  const gapSideM     = 2;    // gap left/right (between neighbors in a row)
-  const gapFrontM    = 5;    // gap front/back (between rows)
-  const edgeMarginM  = 0.6;  // set-on from boundary/roads
+  // FRONT (short) runs ALONG boundary; DEPTH (long) runs PERPENDICULAR
+  const HOME_FRONT_M  = 6.5;  // short edge (frontage)
+  const HOME_DEPTH_M  = 10;   // long edge (depth)
+  const HOME_HEIGHT_M = 4;    // extrusion height
+
+  const GAP_SIDE_M    = 2;    // gap between frontages (left/right)
+  const GAP_FRONT_M   = 5;    // gap between rows (front/back)
+  const EDGE_MARGIN_M = 0.5;  // inset from edges
   // ------------------------------
 
-  // Inset so homes fit fully
-  const halfMax = Math.max(homeWidthM, homeDepthM) / 2;
+  // Inset buildable polygon so homes fit fully
+  const halfMax = Math.max(HOME_FRONT_M, HOME_DEPTH_M) / 2;
   let placementArea;
   try {
-    placementArea = turf.buffer(buildable, -(halfMax + edgeMarginM), { units: 'meters' });
+    placementArea = turf.buffer(buildable, -(halfMax + EDGE_MARGIN_M), { units: 'meters' });
     if (!placementArea ||
         (placementArea.geometry.type !== 'Polygon' && placementArea.geometry.type !== 'MultiPolygon')) {
       placementArea = buildable;
@@ -260,68 +263,46 @@ function fillHomes() {
   const ha     = areaM2 / 10000;
 
   // meters → degrees at site latitude (approx)
-  const lat    = turf.center(buildable).geometry.coordinates[1];
-  const dLat   = 1 / 110540;
-  const dLon   = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+  const lat   = turf.center(buildable).geometry.coordinates[1];
+  const dLat  = 1 / 110540;
+  const dLon  = 1 / (111320 * Math.cos(lat * Math.PI / 180));
 
-  const widthLon = homeWidthM * dLon;                 // short side along the edge (x‑axis)
-  const depthLat = homeDepthM * dLat;                 // long side inward (y‑axis)
-  const stepLon  = (homeWidthM + gapSideM) * dLon;    // along the edge
-  const stepLat  = (homeDepthM + gapFrontM) * dLat;   // inward spacing
+  // FRONT along X (boundary direction), DEPTH along Y
+  const frontLon = HOME_FRONT_M * dLon;  // X footprint
+  const depthLat = HOME_DEPTH_M * dLat;  // Y footprint
 
-  // --- Find the longest boundary edge and its angle ---
-  const ring = siteBoundary.geometry.coordinates[0];
-  let leIdx = 0, leLen = -1, leAngle = 0;
-  for (let i = 0; i < ring.length - 1; i++) {
-    const p1 = turf.point(ring[i]);
-    const p2 = turf.point(ring[i+1]);
-    const len = turf.distance(p1, p2, { units: 'meters' });
-    if (len > leLen) { leLen = len; leAngle = turf.bearing(p1, p2); leIdx = i; }
-  }
+  // Grid spacing: side-to-side uses FRONT; front-to-back uses DEPTH
+  const stepLon  = (HOME_FRONT_M + GAP_SIDE_M)  * dLon;
+  const stepLat  = (HOME_DEPTH_M + GAP_FRONT_M) * dLat;
 
-  // Rotation angle: x axis along the longest edge (unless user overrides)
-  let angle = parseFloat($('rotationAngle')?.value);
-  if (isNaN(angle)) angle = leAngle;
+  // Rotation: manual or auto (longest edge)
+  const manualAngle = parseFloat($('rotationAngle')?.value);
+  const angle = isNaN(manualAngle) ? getLongestEdgeAngle(siteBoundary) : manualAngle;
 
-  // Rotate placementArea into an unrotated frame:
-  //   x = along the longest edge, y = inward normal
+  // Work in rotated frame where rows are axis-aligned, then rotate homes back
   const pivot = turf.center(placementArea).geometry.coordinates;
   const rotatedArea = turf.transformRotate(placementArea, -angle, { pivot });
 
-  // Determine which y direction is "inward" by comparing longest-edge mid‑y with centroid y
-  const siteCentroid = turf.transformRotate(turf.center(siteBoundary), -angle, { pivot });
-  const p1R = turf.transformRotate(turf.point(ring[leIdx]),   -angle, { pivot });
-  const p2R = turf.transformRotate(turf.point(ring[leIdx+1]), -angle, { pivot });
-  const yEdgeMid = (p1R.geometry.coordinates[1] + p2R.geometry.coordinates[1]) / 2;
-  const yCentroid = siteCentroid.geometry.coordinates[1];
-  const inwardSign = (yCentroid >= yEdgeMid) ? 1 : -1;
-
-  // Grid bounds in rotated space
-  const bbox = turf.bbox(rotatedArea);
-  const minX = bbox[0], minY = bbox[1], maxX = bbox[2], maxY = bbox[3];
-
-  // Start the first row next to the longest edge (push inward by half depth + margin)
-  const startY = yEdgeMid + inwardSign * (depthLat / 2 + edgeMarginM * dLat);
-
-  // Build homes as axis-aligned rects in rotated space, then rotate back
+  const bbox  = turf.bbox(rotatedArea);
   const homes = [];
 
-  for (let y = startY;
-       inwardSign > 0 ? (y < maxY) : (y > minY);
-       y += inwardSign * stepLat) {
+  for (let x = bbox[0]; x < bbox[2]; x += stepLon) {
+    for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
+      const cx = x + stepLon / 2, cy = y + stepLat / 2;
 
-    for (let x = minX + stepLon/2; x < maxX; x += stepLon) {
-      const halfLon = widthLon / 2, halfLat = depthLat / 2;
+      // Rectangle in rotated space (FRONT along X, DEPTH along Y)
+      const halfLon = frontLon / 2, halfLat = depthLat / 2;
       const rect = turf.polygon([[
-        [x - halfLon, y - halfLat],
-        [x + halfLon, y - halfLat],
-        [x + halfLon, y + halfLat],
-        [x - halfLon, y + halfLat],
-        [x - halfLon, y - halfLat]
-      ]], { height: homeHeightM });
+        [cx - halfLon, cy - halfLat],
+        [cx + halfLon, cy - halfLat],
+        [cx + halfLon, cy + halfLat],
+        [cx - halfLon, cy + halfLat],
+        [cx - halfLon, cy - halfLat]
+      ]], { height: HOME_HEIGHT_M });
 
       if (turf.booleanWithin(rect, rotatedArea)) {
-        homes.push(turf.transformRotate(rect, angle, { pivot }));
+        const rectBack = turf.transformRotate(rect, angle, { pivot });
+        homes.push(rectBack);
       }
     }
   }
