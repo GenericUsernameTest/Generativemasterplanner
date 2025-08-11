@@ -1,7 +1,6 @@
 // main.js (very top)
 import { fillHomesOrientedToRoads } from './homes.js';
 
-
 // ========= CONFIG =========
 mapboxgl.accessToken =
   'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
@@ -169,38 +168,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (fillHomesBtn) {
       fillHomesBtn.onclick = () => {
         try {
-          generateHomesSafe(map, siteBoundary, roads);
+          // Use the road-aware generator from homes.js
+          fillHomesOrientedToRoads({
+            map,
+            siteBoundary,
+            roads,
+            getRotationDeg: () => {
+              const raw = parseFloat(String($('rotationAngle')?.value || '').trim());
+              return Number.isFinite(raw) ? raw : getLongestEdgeAngle(siteBoundary);
+            },
+            setStats: (html) => {
+              const el = $('stats'); if (el) el.innerHTML = html;
+            }
+          });
         } catch (err) {
           console.error('Generate Plan failed:', err);
-          setStats('<p style="color:#b91c1c"><strong>Couldn’t generate.</strong> Open the console for details.</p>');
+          const el = $('stats');
+          if (el) el.innerHTML = '<p style="color:#b91c1c"><strong>Couldn’t generate.</strong> Open the console for details.</p>';
           alert('Generate Plan failed. See console for details.');
         }
       };
     }
 
-if (fillHomesBtn) {
-  fillHomesBtn.onclick = () => {
-    try {
-      fillHomesOrientedToRoads({
-        map,
-        siteBoundary,
-        roads,                                // ok if empty
-        getRotationDeg: () => {
-          const raw = parseFloat(String($('rotationAngle')?.value || '').trim());
-          return Number.isFinite(raw) ? raw : getLongestEdgeAngle(siteBoundary);
-        },
-        setStats: (html) => {
-          const el = $('stats'); if (el) el.innerHTML = html;
-        }
-      });
-    } catch (err) {
-      console.error('Generate Plan failed:', err);
-      const el = $('stats');
-      if (el) el.innerHTML = '<p style="color:#b91c1c"><strong>Couldn’t generate.</strong> Open the console for details.</p>';
-      alert('Generate Plan failed. See console for details.');
+    if (clearAllBtn) {
+      clearAllBtn.onclick = () => {
+        if (draw) draw.deleteAll();
+        siteBoundary = null;
+        roads = [];
+        refreshSite();
+        clearHomes();
+        setStats('');
+      };
     }
-  };
-}
+  } // ← CLOSES wireToolbar()
 
   // ===== Rendering helpers =====
   function refreshSite() {
@@ -214,7 +214,7 @@ if (fillHomesBtn) {
     if (el) el.innerHTML = html;
   }
 
-  // ===== Generate (robust) =====
+  // ===== Generate (kept for manual quick test if needed) =====
   function generateHomesSafe(map, site, roads) {
     if (!site) { alert('Draw the site boundary first.'); return; }
 
@@ -275,8 +275,8 @@ if (fillHomesBtn) {
 
     const widthLon = Math.max(1e-9, homeWidthM * dLon);
     const depthLat = Math.max(1e-9, homeDepthM * dLat);
-    const stepLon  = Math.max(1e-9, (homeWidthM + sideGapM)    * dLon); // across short edges
-    const stepLat  = Math.max(1e-9, (homeDepthM + frontSetback)* dLat); // along long edges
+    const stepLon  = Math.max(1e-9, (homeWidthM + sideGapM)    * dLon);
+    const stepLat  = Math.max(1e-9, (homeDepthM + frontSetback)* dLat);
 
     // 5) Rotate area to axis frame, seed grid, rotate back
     const pivot = turf.center(placementArea).geometry.coordinates;
@@ -313,7 +313,7 @@ if (fillHomesBtn) {
       }
     }
 
-    // 6) Render + stats (use buildable for density)
+    // 6) Render + stats
     const areaM2 = turf.area(buildable);
     const ha = areaM2 / 10000;
     map.getSource('homes')?.setData(fc(homes));
