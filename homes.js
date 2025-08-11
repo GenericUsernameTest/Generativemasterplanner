@@ -1,129 +1,112 @@
-// homes.js
-// Utilities for layout + generation
+import * as turf from '@turf/turf';
 
-// Longest boundary edge bearing (degrees, -180..180)
-export function getLongestEdgeAngle(polygon) {
-  const ring = polygon.geometry.coordinates[0];
-  let best = { dist: 0, angle: 0 };
-  for (let i = 0; i < ring.length - 1; i++) {
-    const p1 = turf.point(ring[i]);
-    const p2 = turf.point(ring[i + 1]);
-    const dist = turf.distance(p1, p2, { units: 'meters' });
-    if (dist > best.dist) {
-      best.dist = dist;
-      best.angle = turf.bearing(p1, p2); // -180..180
-    }
-  }
-  return best.angle;
-}
-
-// Main generator. Returns { homesFC, stats }
-export function fillHomes({
-  map,
-  siteBoundary,
-  roads = [],
-  rotationDegrees,       // number | NaN -> auto
-  params = {},
-  targetSourceId = 'homes'
-}) {
-  // ---- Defaults (edit if you like) ----
+export function generateMasterplan(siteBoundary, opts) {
   const {
-    homeWidthM  = 6.5,  // short side  (street/front)
-    homeDepthM  = 10,   // long side   (back)
-    homeHeightM = 4,    // extrusion height
-    gapSideM    = 2,    // gap left/right (between short sides)
-    gapFrontM   = 5,    // gap front/back (between long sides)
-    edgeMarginM = 0.6   // clearance to edges
-  } = params;
+    rotationDeg,
+    homeW,
+    homeD,
+    frontSetback,
+    sideGap,
+    roadW,
+    lotsPerBlock
+  } = opts;
 
-  // Buildable = site − union(roads)
-  let buildable = siteBoundary;
-  if (roads.length) {
-    let u = roads[0];
-    for (let i = 1; i < roads.length; i++) {
-      try { u = turf.union(u, roads[i]); } catch {}
-    }
-    try { buildable = turf.difference(siteBoundary, u) || siteBoundary; } catch {}
+  const lat = turf.center(siteBoundary).geometry.coordinates[1];
+  const m2lat = 1 / 110540;
+  const m2lon = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+
+  // --- 1) ROAD GRID ---
+  const pivot = turf.center(siteBoundary).geometry.coordinates;
+  const rotatedSite = turf.transformRotate(siteBoundary, -rotationDeg, { pivot });
+  const [minX, minY, maxX, maxY] = turf.bbox(rotatedSite);
+
+  const blockDepthM = roadW + 2 * (homeD + frontSetback); // 2 deep rows per road
+  const blockLenM = lotsPerBlock * (homeW + sideGap);     // length before cross road
+
+  const roads = [];
+
+  // Avenues (parallel to rotation axis)
+  for (let y = minY; y <= maxY; y += blockDepthM * m2lat) {
+    const line = turf.transformRotate(
+      turf.lineString([[minX, y], [maxX, y]]),
+      rotationDeg, { pivot }
+    );
+    roads.push(line);
   }
 
-  // Inset so full rectangles fit
-  const halfMax = Math.max(homeWidthM, homeDepthM) / 2;
-  let placementArea;
-  try {
-    placementArea = turf.buffer(buildable, -(halfMax + edgeMarginM), { units: 'meters' });
-    if (!placementArea || !['Polygon','MultiPolygon'].includes(placementArea.geometry.type)) {
-      placementArea = buildable;
-    }
-  } catch { placementArea = buildable; }
+  // Cross streets
+  for (let x = minX; x <= maxX; x += blockLenM * m2lon) {
+    const line = turf.transformRotate(
+      turf.lineString([[x, minY], [x, maxY]]),
+      rotationDeg, { pivot }
+    );
+    roads.push(line);
+  }
 
-  // Stats
-  const areaM2 = turf.area(buildable);
-  const ha     = areaM2 / 10000;
+  // Buffer to road polygons
+  let roadPoly = null;
+  roads.forEach(r => {
+    const buf = turf.buffer(r, roadW / 2, { units: 'meters' });
+    roadPoly = roadPoly ? turf.union(roadPoly, buf) : buf;
+  });
+  roadPoly = turf.intersect(roadPoly, siteBoundary) || roadPoly;
+  const roadFC = turf.featureCollection(turf.flatten(roadPoly).features);
 
-  // meters → degrees (approx at site latitude)
-  const lat   = turf.center(buildable).geometry.coordinates[1];
-  const dLat  = 1 / 110540;
-  const dLon  = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+  // --- 2) BUILDABLE BLOCKS ---
+  const blocks = turf.difference(siteBoundary, roadPoly);
+  if (!blocks) return { roads: roadFC, homes: turf.featureCollection([]) };
 
-  // IMPORTANT: we want short side (width) to face the long boundary.
-  // That means rows should run ALONG the long edge, with *depth* stepping
-  // perpendicular to it. To do that, rotate grid so X-axis is ALONG long edge.
-  const autoBearing = getLongestEdgeAngle(siteBoundary);         // along the long side
-  const angleUsed   = Number.isFinite(rotationDegrees)
-    ? rotationDegrees
-    : autoBearing;                                              // use manual if provided, else auto
-
-  // In the rotated frame:
-  // - X axis: along rows (houses sit side-by-side), step by (homeWidth + gapSide)
-  // - Y axis: across rows (front-to-back), step by (homeDepth + gapFront)
-  const widthLon = homeWidthM * dLon;    // short
-  const depthLat = homeDepthM * dLat;    // long
-  const stepLon  = (homeWidthM + gapSideM) * dLon;
-  const stepLat  = (homeDepthM + gapFrontM) * dLat;
-
-  // Rotate placement area so rows align to X axis
-  const pivot = turf.center(placementArea).geometry.coordinates;
-  const rotatedArea = turf.transformRotate(placementArea, -angleUsed, { pivot });
-
-  const [minX, minY, maxX, maxY] = turf.bbox(rotatedArea);
+  // --- 3) HOME PLACEMENT ---
   const homes = [];
+  turf.flatten(blocks).features.forEach(block => {
+    const outline = turf.polygonToLine(block);
+    const coords = outline.geometry.coordinates;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = coords[i], b = coords[i + 1];
+      const edge = turf.lineString([a, b]);
+      const len = turf.length(edge, { units: 'meters' });
 
-  // Sweep across whole bbox; ensure inclusive end so we don’t leave a gap
-  for (let x = minX; x <= maxX; x += stepLon) {
-    for (let y = minY; y <= maxY; y += stepLat) {
-      const cx = x + stepLon / 2, cy = y + stepLat / 2;
+      // Only place on edges facing roads
+      const edgeBuf = turf.buffer(edge, 0.1, { units: 'meters' });
+      const touchesRoad = turf.booleanIntersects(edgeBuf, roadPoly);
+      if (!touchesRoad) continue;
 
-      // Axis-aligned rectangle in rotated space:
-      const halfLon = widthLon / 2, halfLat = depthLat / 2;
-      const rect = turf.polygon([[
-        [cx - halfLon, cy - halfLat],
-        [cx + halfLon, cy - halfLat],
-        [cx + halfLon, cy + halfLat],
-        [cx - halfLon, cy + halfLat],
-        [cx - halfLon, cy - halfLat]
-      ]], { height: homeHeightM });
+      const bearing = turf.bearing(a, b);
+      const inward = bearing - 90;
 
-      // Keep only if fully inside buildable (in rotated frame)
-      if (turf.booleanWithin(rect, rotatedArea)) {
-        // Rotate back into map space
-        const back = turf.transformRotate(rect, angleUsed, { pivot });
-        homes.push(back);
+      const bl = turf.transformTranslate(edge, frontSetback, inward, { units: 'meters' });
+      let t = 0;
+      const step = homeW + sideGap;
+      while (t + homeW <= len + 1e-6) {
+        const mid = turf.along(bl, t + homeW / 2, { units: 'meters' }).geometry.coordinates;
+        const rect = orientedRect(mid, bearing, homeW, homeD);
+        if (turf.booleanWithin(rect, block)) homes.push(rect);
+        t += step;
       }
     }
-  }
-
-  const homesFC = { type: 'FeatureCollection', features: homes };
-  if (map && map.getSource(targetSourceId)) {
-    map.getSource(targetSourceId).setData(homesFC);
-  }
+  });
 
   return {
-    homesFC,
-    stats: {
-      areaM2,
-      ha,
-      count: homes.length,
-      angleUsed
-    }
+    roads: roadFC,
+    homes: turf.featureCollection(homes)
   };
+
+  function orientedRect(center, bearingDeg, w, d) {
+    const halfW = w / 2, halfD = d / 2;
+    const local = [
+      [-halfW, -halfD], [halfW, -halfD],
+      [halfW, halfD], [-halfW, halfD],
+      [-halfW, -halfD]
+    ];
+    const rad = bearingDeg * Math.PI / 180;
+    const pts = local.map(([x, y]) => {
+      const xr = x * Math.cos(rad) - y * Math.sin(rad);
+      const yr = x * Math.sin(rad) + y * Math.cos(rad);
+      const pt = turf.destination(center, Math.hypot(xr, yr),
+        Math.atan2(xr, yr) * 180 / Math.PI, { units: 'meters' }
+      ).geometry.coordinates;
+      return pt;
+    });
+    return turf.polygon([pts]);
+  }
 }
