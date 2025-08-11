@@ -139,7 +139,6 @@ function wireToolbar() {
     refreshSite();
     refreshRoads();
     clearHomes();
-    setStats('<p><strong>Draw the site boundary first.</strong></p>');
   };
 }
 
