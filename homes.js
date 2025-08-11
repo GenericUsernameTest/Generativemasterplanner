@@ -1,4 +1,4 @@
-// homes.js — robust roads + homes (uses global `turf` from CDN)
+// homes.js — generate roads + homes using global `turf` (from CDN)
 
 export function generateMasterplan(siteBoundary, opts) {
   const {
@@ -8,15 +8,16 @@ export function generateMasterplan(siteBoundary, opts) {
     frontSetback,
     sideGap,
     roadW,
-    lotsPerBlock
+    lotsPerBlock,
+    edgeClearance = 1.0 // meters inset from boundary for footprints
   } = opts;
 
   // normalize params
-  const W  = Math.max(1, +homeW || 9);
-  const D  = Math.max(1, +homeD || 12);
+  const W  = Math.max(1, +homeW || 9);    // frontage (short side)
+  const D  = Math.max(1, +homeD || 12);   // depth
   const FS = Math.max(0, +frontSetback || 5);
   const SG = Math.max(0, +sideGap || 2);
-  const RW = Math.max(2, +roadW || 9);
+  const RW = Math.max(2, +roadW || 9);    // road width
   const LPB= Math.max(1, +lotsPerBlock || 5);
 
   // meters->degrees (rough) at site latitude
@@ -54,10 +55,15 @@ export function generateMasterplan(siteBoundary, opts) {
   const blocks = turf.difference(siteBoundary, roadPoly);
   if (!blocks) return { roads: roadsFC, homes: fc([]) };
 
+  // inset the blocks so homes never cross the green boundary
+  const buf = turf.buffer(blocks, -edgeClearance, { units: 'meters' });
+  const buildable = buf || blocks; // fallback if inset collapses
+
   // 4) PLACE HOMES along offsets of centerlines
   const homes = [];
   const offsetDist = (RW / 2) + FS + (D / 2);   // center of home
   const step = W + SG;
+  const endMargin = W / 2; // prevent hanging past ends
 
   centerlines.forEach(cl => {
     const left  = safeLineOffset(cl,  offsetDist);
@@ -69,21 +75,22 @@ export function generateMasterplan(siteBoundary, opts) {
       const L = turf.length(bl, { units: 'meters' });
       if (L < W) return;
 
-      let t = 0;
-      while (t + W <= L + 1e-6) {
+      let t = endMargin;
+      while (t + W/2 <= L - endMargin + 1e-6) {
         const p1 = turf.along(bl, Math.max(0, t + W/2 - 0.02), { units: 'meters' }).geometry.coordinates;
         const p2 = turf.along(bl, Math.min(L, t + W/2 + 0.02), { units: 'meters' }).geometry.coordinates;
         const bearing = turf.bearing(p1, p2);
+
         const mid = turf.along(bl, t + W/2, { units: 'meters' }).geometry.coordinates;
 
-        const rect = orientedRect(mid, bearing +90, W, D);
+        // Short side (W) faces the road => bearing + 90
+        const rect = orientedRect(mid, bearing + 90, W, D);
 
-        // tolerant acceptance: centroid inside buildable; not intersecting roads
-        const c = turf.centroid(rect);
-        const insideBuildable = turf.booleanPointInPolygon(c, blocks);
-        const hitsRoad = turf.booleanIntersects(rect, roadPoly);
-
-        if (insideBuildable && !hitsRoad) homes.push(rect);
+        // strict footprint check inside buildable, no road overlap
+        if (turf.booleanWithin(rect, buildable) &&
+            !turf.booleanIntersects(rect, roadPoly)) {
+          homes.push(rect);
+        }
 
         t += step;
       }
@@ -100,7 +107,6 @@ export function generateMasterplan(siteBoundary, opts) {
       const off = turf.lineOffset(line, distM, { units: 'meters' });
       if (!off) return null;
       if (off.geometry.type === 'MultiLineString') {
-        // choose longest piece to march along
         let best = null, bestLen = 0;
         off.geometry.coordinates.forEach(coords => {
           const ls = turf.lineString(coords);
@@ -111,7 +117,6 @@ export function generateMasterplan(siteBoundary, opts) {
       }
       return off;
     } catch {
-      // fallback: approximate by translating segment endpoints
       const coords = line.geometry.coordinates;
       if (!coords || coords.length < 2) return null;
       const out = [];
