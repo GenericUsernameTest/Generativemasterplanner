@@ -1,4 +1,4 @@
-// homes.js — robust roads + homes with logging and offset fallback (uses global `turf`)
+// homes.js — robust roads + homes (uses global `turf` from CDN)
 
 export function generateMasterplan(siteBoundary, opts) {
   const {
@@ -11,158 +11,96 @@ export function generateMasterplan(siteBoundary, opts) {
     lotsPerBlock
   } = opts;
 
-  // ------- sanity on params -------
-  const W = Math.max(1, +homeW || 9);
-  const D = Math.max(1, +homeD || 12);
+  // normalize params
+  const W  = Math.max(1, +homeW || 9);
+  const D  = Math.max(1, +homeD || 12);
   const FS = Math.max(0, +frontSetback || 5);
   const SG = Math.max(0, +sideGap || 2);
   const RW = Math.max(2, +roadW || 10);
-  const LPB = Math.max(1, +lotsPerBlock || 5);
+  const LPB= Math.max(1, +lotsPerBlock || 5);
 
-  // --- meters->degrees (rough) at site latitude ---
+  // meters->degrees (rough) at site latitude
   const lat = turf.center(siteBoundary).geometry.coordinates[1];
   const m2lat = 1 / 110540;
   const m2lon = 1 / (111320 * Math.cos(lat * Math.PI / 180));
 
-  // --- 1) ROAD GRID (centerlines) ---
+  // 1) ROAD GRID (centerlines)
   const pivot = turf.center(siteBoundary).geometry.coordinates;
   const rotatedSite = turf.transformRotate(siteBoundary, -rotationDeg, { pivot });
   const [minX, minY, maxX, maxY] = turf.bbox(rotatedSite);
 
-  const moduleDepthM = RW + 2 * (D + FS);           // two deep rows per road
-  const blockLenM    = LPB * (W + SG);              // cross-street spacing
+  const moduleDepthM = RW + 2 * (D + FS);   // two-deep rows per road
+  const blockLenM    = LPB * (W + SG);      // cross-street spacing
 
   const centerlines = [];
-
-  // Avenues
   for (let y = minY; y <= maxY; y += moduleDepthM * m2lat) {
-    centerlines.push(
-      turf.transformRotate(turf.lineString([[minX, y], [maxX, y]]), rotationDeg, { pivot })
-    );
+    centerlines.push(turf.transformRotate(turf.lineString([[minX, y], [maxX, y]]), rotationDeg, { pivot }));
   }
-  // Cross streets
   for (let x = minX; x <= maxX; x += blockLenM * m2lon) {
-    centerlines.push(
-      turf.transformRotate(turf.lineString([[x, minY], [x, maxY]]), rotationDeg, { pivot })
-    );
+    centerlines.push(turf.transformRotate(turf.lineString([[x, minY], [x, maxY]]), rotationDeg, { pivot }));
   }
 
-  console.log('[MP] centerlines:', centerlines.length);
-
-  // --- 2) ROAD POLYGONS (buffer & clip) ---
+  // 2) ROAD POLYGONS (buffer & clip)
   let roadPoly = null;
   centerlines.forEach(l => {
-    try {
-      const buf = turf.buffer(l, RW / 2, { units: 'meters' });
-      roadPoly = roadPoly ? turf.union(roadPoly, buf) : buf;
-    } catch (e) {
-      console.warn('[MP] buffer/union failed for a centerline:', e);
-    }
+    const buf = turf.buffer(l, RW / 2, { units: 'meters' });
+    roadPoly = roadPoly ? turf.union(roadPoly, buf) : buf;
   });
-  if (!roadPoly) {
-    console.warn('[MP] roadPoly is null; returning empty plan');
-    return { roads: fc([]), homes: fc([]) };
-  }
+  if (!roadPoly) return { roads: fc([]), homes: fc([]) };
   roadPoly = turf.intersect(roadPoly, siteBoundary) || roadPoly;
   const roadsFC = fc(turf.flatten(roadPoly).features);
 
-  // --- 3) BUILDABLE AREA (site minus roads) ---
+  // 3) BUILDABLE AREA (site - roads)
   const blocks = turf.difference(siteBoundary, roadPoly);
-  if (!blocks) {
-    console.warn('[MP] blocks is null (roads fully cover site?)');
-    return { roads: roadsFC, homes: fc([]) };
-  }
+  if (!blocks) return { roads: roadsFC, homes: fc([]) };
 
-// --- 4) PLACE HOMES (offset or fallback) ---
-const homes = [];
+  // 4) PLACE HOMES along offsets of centerlines
+  const homes = [];
+  const offsetDist = (RW / 2) + FS + (D / 2);   // center of home
+  const step = W + SG;
 
-// Offset to the **center** of the home so the rectangle doesn't overlap the road
-const offsetDist = (RW / 2) + FS + (D / 2);
-
-const step = W + SG;
-
-  centerlines.forEach((cl, idx) => {
-    // try true offsets first
+  centerlines.forEach(cl => {
     const left  = safeLineOffset(cl,  offsetDist);
     const right = safeLineOffset(cl, -offsetDist);
 
-    const placedFromOffsets =
-      placeAlongLine(left,  step, +1) +
-      placeAlongLine(right, step, -1);
+    [left, right].forEach(bl => {
+      if (!bl) return;
 
-    if (placedFromOffsets === 0) {
-      // fallback: sample along the centerline, then translate perpendicular
-      const L = turf.length(cl, { units: 'meters' });
+      const L = turf.length(bl, { units: 'meters' });
       if (L < W) return;
+
       let t = 0;
-      let added = 0;
       while (t + W <= L + 1e-6) {
-        // tangent bearing from nearby points
-        const p1 = turf.along(cl, Math.max(0, t + W/2 - 0.02), { units: 'meters' }).geometry.coordinates;
-        const p2 = turf.along(cl, Math.min(L, t + W/2 + 0.02), { units: 'meters' }).geometry.coordinates;
+        const p1 = turf.along(bl, Math.max(0, t + W/2 - 0.02), { units: 'meters' }).geometry.coordinates;
+        const p2 = turf.along(bl, Math.min(L, t + W/2 + 0.02), { units: 'meters' }).geometry.coordinates;
         const bearing = turf.bearing(p1, p2);
+        const mid = turf.along(bl, t + W/2, { units: 'meters' }).geometry.coordinates;
 
-        // center on CL, then translate left/right by offsetDist
-        const mid = turf.along(cl, t + W/2, { units: 'meters' }).geometry.coordinates;
+        const rect = orientedRect(mid, bearing, W, D);
 
-        const leftCenter  = turf.transformTranslate(turf.point(mid),  offsetDist, bearing + 90, { units: 'meters' }).geometry.coordinates;
-        const rightCenter = turf.transformTranslate(turf.point(mid),  offsetDist, bearing - 90, { units: 'meters' }).geometry.coordinates;
+        // tolerant acceptance: centroid inside buildable; not intersecting roads
+        const c = turf.centroid(rect);
+        const insideBuildable = turf.booleanPointInPolygon(c, blocks);
+        const hitsRoad = turf.booleanIntersects(rect, roadPoly);
 
-        added += tryPlaceRect(leftCenter,  bearing);
-        added += tryPlaceRect(rightCenter, bearing);
+        if (insideBuildable && !hitsRoad) homes.push(rect);
 
         t += step;
       }
-      if (added === 0) {
-        console.warn('[MP] fallback placed 0 on CL index', idx);
-      }
-    }
+    });
   });
 
-  console.log('[MP] homes generated:', homes.length);
   return { roads: roadsFC, homes: fc(homes) };
 
-  // -------------- helpers --------------
+  // helpers
   function fc(arr) { return turf.featureCollection(arr); }
 
-  function placeAlongLine(line, stepM, sideSign) {
-    if (!line) return 0;
-    const L = turf.length(line, { units: 'meters' });
-    if (L < W) return 0;
-    let t = 0, added = 0;
-    while (t + W <= L + 1e-6) {
-      const p1 = turf.along(line, Math.max(0, t + W/2 - 0.02), { units: 'meters' }).geometry.coordinates;
-      const p2 = turf.along(line, Math.min(L, t + W/2 + 0.02), { units: 'meters' }).geometry.coordinates;
-      const bearing = turf.bearing(p1, p2);
-      const mid = turf.along(line, t + W/2, { units: 'meters' }).geometry.coordinates;
-      added += tryPlaceRect(mid, bearing);
-      t += stepM;
-    }
-    return added;
-  }
-
-  function tryPlaceRect(centerCoord, bearing) {
-    const rect = orientedRect(centerCoord, bearing, W, D);
-
-    // tolerant acceptance: centroid in buildable, not intersecting roads
-    const c = turf.centroid(rect);
-    const insideBuildable = turf.booleanPointInPolygon(c, blocks);
-    const hitsRoad = turf.booleanIntersects(rect, roadPoly);
-
-    if (insideBuildable && !hitsRoad) {
-      homes.push(rect);
-      return 1;
-    }
-    return 0;
-  }
-
-  // safer wrapper for lineOffset with fallback to approx-translate
   function safeLineOffset(line, distM) {
     try {
       const off = turf.lineOffset(line, distM, { units: 'meters' });
       if (!off) return null;
       if (off.geometry.type === 'MultiLineString') {
-        // pick the longest segment
+        // choose longest piece to march along
         let best = null, bestLen = 0;
         off.geometry.coordinates.forEach(coords => {
           const ls = turf.lineString(coords);
@@ -172,9 +110,8 @@ const step = W + SG;
         return best;
       }
       return off;
-    } catch (e) {
-      // approx fallback: translate each segment's endpoints perpendicular
-      console.warn('[MP] lineOffset failed; using translate fallback:', e);
+    } catch {
+      // fallback: approximate by translating segment endpoints
       const coords = line.geometry.coordinates;
       if (!coords || coords.length < 2) return null;
       const out = [];
@@ -213,22 +150,15 @@ const step = W + SG;
   }
 }
 
-// Default rotation helper
 export function getLongestEdgeAngle(polygon) {
   let maxLen = 0, bestBearing = 0;
   const line = turf.polygonToLine(polygon);
-  const rings = (line.geometry.type === 'LineString')
-    ? [line.geometry.coordinates]
-    : line.geometry.coordinates;
-
+  const rings = (line.geometry.type === 'LineString') ? [line.geometry.coordinates] : line.geometry.coordinates;
   rings.forEach(coords => {
     for (let i = 0; i < coords.length - 1; i++) {
       const a = coords[i], b = coords[i + 1];
       const len = turf.distance(a, b, { units: 'meters' });
-      if (len > maxLen) {
-        maxLen = len;
-        bestBearing = turf.bearing(a, b);
-      }
+      if (len > maxLen) { maxLen = len; bestBearing = turf.bearing(a, b); }
     }
   });
   return bestBearing;
