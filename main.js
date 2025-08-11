@@ -2,7 +2,7 @@
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
 
-// ====== MAP INIT (remember last view) ======
+// ====== MAP INIT ======
 const savedView = JSON.parse(localStorage.getItem('mapView') || '{}');
 
 const map = new mapboxgl.Map({
@@ -24,7 +24,7 @@ map.on('moveend', () => {
   }));
 });
 
-// ====== SEARCH (guarded) ======
+// ====== SEARCH ======
 if (typeof MapboxGeocoder !== 'undefined') {
   const geocoder = new MapboxGeocoder({
     accessToken: mapboxgl.accessToken,
@@ -39,27 +39,34 @@ if (typeof MapboxGeocoder !== 'undefined') {
     map.easeTo({ center: e.result.center, zoom: 16, pitch: 60, bearing: -15 })
   );
 } else {
-  console.warn('MapboxGeocoder script not loaded — search disabled.');
+  console.warn('MapboxGeocoder not loaded — search disabled.');
 }
 
 // ====== STATE ======
-let draw;                  // Mapbox Draw
-let siteBoundary = null;   // Feature<Polygon>
-let roads = [];            // Feature<Polygon>[]
+let draw;
+let siteBoundary = null;
+let roads = [];
 const $ = (id) => document.getElementById(id);
 const setStats = (html) => { const el = $('stats'); if (el) el.innerHTML = html; };
 
 // ====== MAP LOAD ======
 map.on('load', () => {
-  // Sources / layers
-  map.addSource('site-view',  { type: 'geojson', data: emptyFC() });
+  // Site boundary
+  map.addSource('site-view', { type: 'geojson', data: emptyFC() });
   map.addLayer({
-    id: 'site-view',
+    id: 'site-fill',
+    type: 'fill',
+    source: 'site-view',
+    paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 }
+  });
+  map.addLayer({
+    id: 'site-outline',
     type: 'line',
     source: 'site-view',
-    paint: { 'line-color': '#16a34a', 'line-width': 4 } // final saved boundary thickness
+    paint: { 'line-color': '#16a34a', 'line-width': 4 }
   });
 
+  // Roads
   map.addSource('roads-view', { type: 'geojson', data: emptyFC() });
   map.addLayer({
     id: 'roads-view',
@@ -68,6 +75,7 @@ map.on('load', () => {
     paint: { 'fill-color': '#9ca3af', 'fill-opacity': 0.6 }
   });
 
+  // Homes
   map.addSource('homes', { type: 'geojson', data: emptyFC() });
   map.addLayer({
     id: 'homes',
@@ -75,30 +83,25 @@ map.on('load', () => {
     source: 'homes',
     paint: {
       'fill-extrusion-color': '#6699ff',
-      'fill-extrusion-height': ['coalesce', ['get','height'], 4], // fallback 4 m
+      'fill-extrusion-height': ['coalesce', ['get', 'height'], 4],
       'fill-extrusion-opacity': 0.75
     }
   });
 
-  // ---- Draw (no custom styles here; we’ll tweak after) ----
+  // Draw control
   draw = new MapboxDraw({
     displayControlsDefault: false,
     controls: { polygon: true, trash: true }
   });
   map.addControl(draw);
 
-  // Tweak Mapbox Draw layer styles safely (after they exist)
+  // Style tweaks
   const tuneDrawStyles = () => {
     const edits = [
-      // Active polygon stroke (green while drawing)
       ['gl-draw-polygon-stroke-active',   'line-color', '#16a34a'],
       ['gl-draw-polygon-stroke-active',   'line-width', 2],
-
-      // Inactive polygon stroke (orange by default)
       ['gl-draw-polygon-stroke-inactive', 'line-color', '#16a34a'],
       ['gl-draw-polygon-stroke-inactive', 'line-width', 4],
-
-      // Optional: soften inactive fill
       ['gl-draw-polygon-fill-inactive',   'fill-color', '#16a34a'],
       ['gl-draw-polygon-fill-inactive',   'fill-opacity', 0.04]
     ];
@@ -108,8 +111,6 @@ map.on('load', () => {
       }
     });
   };
-
-  // Run once now, and again if the style reloads or modes change
   tuneDrawStyles();
   map.on('styledata', tuneDrawStyles);
   map.on('draw.modechange', () => {
@@ -119,19 +120,18 @@ map.on('load', () => {
 
   wireToolbar();
 
-  // When a polygon is created, decide if it's site or a road
+  // Handle draw complete
   map.on('draw.create', (e) => {
     const feat = e.features[0];
     if (!feat || feat.geometry.type !== 'Polygon') return;
-
     if (!siteBoundary) {
       siteBoundary = feat;
       refreshSite();
-      setStats('<p>Site boundary saved. Click <b>Draw Roads</b> to add road polygons, then <b>Fill with Homes</b>.</p>');
+      setStats('<p>Site boundary saved. Click <b>Draw Roads</b> next.</p>');
     } else {
       roads.push(feat);
       refreshRoads();
-      setStats(`<p>Road added. Total roads: ${roads.length}. Click <b>Fill with Homes</b> when ready.</p>`);
+      setStats(`<p>Road added. Total roads: ${roads.length}.</p>`);
     }
     draw.deleteAll();
     map.getCanvas().style.cursor = '';
@@ -149,18 +149,15 @@ function wireToolbar() {
     clearHomes();
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing site boundary… click to add points, double‑click to finish.</p>');
+    setStats('<p>Drawing site boundary…</p>');
   };
-
   $('drawRoads').onclick = () => {
     if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing roads… add one or more polygons inside the site, double‑click to finish each.</p>');
+    setStats('<p>Drawing roads…</p>');
   };
-
   $('fillHomes').onclick = () => fillHomes();
-
   $('clearAll').onclick = () => {
     draw.deleteAll();
     siteBoundary = null;
@@ -168,7 +165,6 @@ function wireToolbar() {
     refreshSite();
     refreshRoads();
     clearHomes();
-    // leave stats empty
   };
 }
 
@@ -185,33 +181,32 @@ function unionAll(features) {
   let u = features[0];
   for (let i = 1; i < features.length; i++) {
     try { u = turf.union(u, features[i]); }
-    catch (err) { console.warn('union failed on feature', i, err); }
+    catch (err) { console.warn('union failed', err); }
   }
   return u;
 }
 
-// ====== Home generation (width, depth, gaps, height) ======
+// ====== Home generation ======
 function fillHomes() {
   if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
-  // Buildable = site − union(roads)
+  // Buildable area
   let buildable = siteBoundary;
   if (roads.length) {
     const roadsU = unionAll(roads);
     try { buildable = turf.difference(siteBoundary, roadsU) || siteBoundary; }
-    catch (err) { console.warn('difference failed; using site as buildable', err); }
+    catch (err) { console.warn('difference failed', err); }
   }
 
-  // --------- PARAMETERS ---------
-  const homeWidthM   = 6.5;  // building width
-  const homeDepthM   = 10;   // building depth
-  const homeHeightM  = 4;    // extrusion height
-  const gapSideM     = 2;    // gap left/right
-  const gapFrontM    = 5;    // gap front/back
-  const edgeMarginM  = 0.5;  // clearance from edges
-  // ------------------------------
+  // Parameters
+  const homeWidthM   = 6.5;
+  const homeDepthM   = 10;
+  const homeHeightM  = 4;
+  const gapSideM     = 2;
+  const gapFrontM    = 5;
+  const edgeMarginM  = 0.5;
 
-  // Inset buildable polygon so homes fit
+  // Inset buildable area
   const halfMax = Math.max(homeWidthM, homeDepthM) / 2;
   let placementArea;
   try {
@@ -221,14 +216,14 @@ function fillHomes() {
       placementArea = buildable;
     }
   } catch (e) {
-    console.warn('inset buffer failed, placing on original buildable', e);
+    console.warn('buffer failed', e);
     placementArea = buildable;
   }
 
   const areaM2 = turf.area(buildable);
   const ha     = areaM2 / 10000;
 
-  // meters → degrees at site latitude
+  // Step sizes
   const lat      = turf.center(buildable).geometry.coordinates[1];
   const dLat     = 1 / 110540;
   const dLon     = 1 / (111320 * Math.cos(lat * Math.PI / 180));
@@ -243,7 +238,6 @@ function fillHomes() {
   for (let x = bbox[0]; x < bbox[2]; x += stepLon) {
     for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
       const cx = x + stepLon / 2, cy = y + stepLat / 2;
-
       const halfLon = widthLon / 2, halfLat = depthLat / 2;
       const homePoly = turf.polygon([[
         [cx - halfLon, cy - halfLat],
@@ -252,7 +246,6 @@ function fillHomes() {
         [cx - halfLon, cy + halfLat],
         [cx - halfLon, cy - halfLat]
       ]], { height: homeHeightM });
-
       if (turf.booleanWithin(homePoly, placementArea)) {
         homes.push(homePoly);
       }
