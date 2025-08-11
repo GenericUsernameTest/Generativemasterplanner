@@ -73,10 +73,13 @@ export function generateMasterplan(siteBoundary, opts) {
     return { roads: roadsFC, homes: fc([]) };
   }
 
-  // --- 4) PLACE HOMES (offset or fallback) ---
-  const homes = [];
-  const offsetDist = (RW / 2) + FS; // meters from centerline to building line
-  const step = W + SG;
+// --- 4) PLACE HOMES (offset or fallback) ---
+const homes = [];
+
+// Offset to the **center** of the home so the rectangle doesn't overlap the road
+const offsetDist = (RW / 2) + FS + (D / 2);
+
+const step = W + SG;
 
   centerlines.forEach((cl, idx) => {
     // try true offsets first
