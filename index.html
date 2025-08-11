@@ -84,14 +84,32 @@
 
   <div class="info-box" id="stats"></div>
 
-  <div id="toolbar">
-    <button id="drawSite">Draw Site Boundary</button>
-    <button id="drawRoads">Draw Roads</button>
-    <button id="fillHomes">Fill with Homes</button>
-    <button id="clearAll">Clear All</button>
-    <label for="rotationAngle">Rotation (degrees):</label>
-    <input type="number" id="rotationAngle" value="" placeholder="Auto">
-  </div>
+<div id="toolbar">
+  <button id="drawSite">Draw Site Boundary</button>
+  <button id="fillHomes">Generate Plan</button>
+  <button id="clearAll">Clear All</button>
+
+  <label for="rotationAngle">Rotation (degrees):</label>
+  <input type="number" id="rotationAngle" value="" placeholder="Auto">
+
+  <label for="homeWidth">Home Width (m):</label>
+  <input type="number" id="homeWidth" value="9">
+
+  <label for="homeDepth">Home Depth (m):</label>
+  <input type="number" id="homeDepth" value="12">
+
+  <label for="frontSetback">Front Setback (m):</label>
+  <input type="number" id="frontSetback" value="5">
+
+  <label for="sideGap">Side Gap (m):</label>
+  <input type="number" id="sideGap" value="2">
+
+  <label for="roadWidth">Road Width (m):</label>
+  <input type="number" id="roadWidth" value="10">
+
+  <label for="lotsPerBlock">Lots per Block:</label>
+  <input type="number" id="lotsPerBlock" value="5">
+</div>
 
   <!-- Mapbox JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
