@@ -1,23 +1,16 @@
 // main.js
 
-// ========== CONFIG ==========
-mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
+// ========= CONFIG =========
+mapboxgl.accessToken =
+  'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
 
-// ========== UTIL ==========
+// ========= SMALL UTILS =========
 const $ = (id) => document.getElementById(id);
 const emptyFC = () => ({ type: 'FeatureCollection', features: [] });
 const fc = (features) => ({ type: 'FeatureCollection', features });
 
-// Convert meters to degree deltas at given latitude
-function metersToDegrees(latDeg) {
-  const lat = latDeg * Math.PI / 180;
-  const dLat = 1 / 110540;                 // deg latitude per meter
-  const dLon = 1 / (111320 * Math.cos(lat)); // deg longitude per meter
-  return { dLon, dLat };
-}
-
-// Bearing of longest site edge (deg, -180..180)
+// Bearing of the longest site edge (deg)
 function getLongestEdgeAngle(polygon) {
   const ring = polygon?.geometry?.coordinates?.[0] || [];
   let bestDist = 0, bestAngle = 0;
@@ -32,8 +25,17 @@ function getLongestEdgeAngle(polygon) {
   }
   return bestAngle;
 }
+function unionAll(features) {
+  if (!Array.isArray(features) || !features.length) return null;
+  let u = features[0];
+  for (let i = 1; i < features.length; i++) {
+    try { u = turf.union(u, features[i]); }
+    catch (e) { console.warn('union failed on feature', i, e); }
+  }
+  return u;
+}
 
-// ========== APP ==========
+// ========= APP =========
 document.addEventListener('DOMContentLoaded', () => {
   // Restore last view
   const savedView = JSON.parse(localStorage.getItem('mapView') || '{}');
@@ -58,11 +60,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   });
 
+  // State
   let draw;
   let siteBoundary = null;
+  let roads = []; // reserved if you add a roads tool later
 
   map.on('load', () => {
-    // Layers: site (fill then line), homes
+    // Sources & layers
     map.addSource('site-view', { type: 'geojson', data: emptyFC() });
     map.addLayer({
       id: 'site-fill',
@@ -84,64 +88,63 @@ document.addEventListener('DOMContentLoaded', () => {
       source: 'homes',
       paint: {
         'fill-extrusion-color': '#6699ff',
-        'fill-extrusion-height': ['coalesce', ['get','height'], 4],
+        'fill-extrusion-height': ['coalesce', ['get', 'height'], 4],
         'fill-extrusion-opacity': 0.75
       }
     });
 
-    // Draw
+    // Draw control
     draw = new MapboxDraw({ displayControlsDefault: false, controls: { polygon: true, trash: true } });
     map.addControl(draw);
 
-    // Make Draw look like your theme (after the style is ready)
+    // Match draw styles to your theme
     const tuneDrawStyles = () => {
       const edits = [
-        ['gl-draw-polygon-stroke-active',   'line-color', '#16a34a'],
-        ['gl-draw-polygon-stroke-active',   'line-width', 2],
+        ['gl-draw-polygon-stroke-active', 'line-color', '#16a34a'],
+        ['gl-draw-polygon-stroke-active', 'line-width', 2],
         ['gl-draw-polygon-stroke-inactive', 'line-color', '#16a34a'],
         ['gl-draw-polygon-stroke-inactive', 'line-width', 3],
-        ['gl-draw-polygon-fill-inactive',   'fill-color', '#16a34a'],
-        ['gl-draw-polygon-fill-inactive',   'fill-opacity', 0.05]
+        ['gl-draw-polygon-fill-inactive', 'fill-color', '#16a34a'],
+        ['gl-draw-polygon-fill-inactive', 'fill-opacity', 0.05]
       ];
       edits.forEach(([id, prop, val]) => {
-        if (map.getLayer(id)) {
-          try { map.setPaintProperty(id, prop, val); } catch {}
-        }
+        if (map.getLayer(id)) { try { map.setPaintProperty(id, prop, val); } catch {} }
       });
     };
     tuneDrawStyles();
     map.on('styledata', tuneDrawStyles);
     map.on('draw.modechange', () => { map.getCanvas().style.cursor = ''; tuneDrawStyles(); });
 
-    // Draw end -> capture site
+    // Capture site polygon
     map.on('draw.create', (e) => {
-      const feat = e.features[0];
+      const feat = e.features?.[0];
       if (!feat || feat.geometry.type !== 'Polygon') return;
 
       siteBoundary = feat;
       refreshSite();
-      // Pre-fill rotation with auto bearing
-      const auto = getLongestEdgeAngle(siteBoundary);
-      if ($('rotationAngle')) $('rotationAngle').value = auto.toFixed(1);
+      // Prefill rotation with auto if input exists
+      const autoA = getLongestEdgeAngle(siteBoundary);
+      const angleEl = $('rotationAngle');
+      if (angleEl) angleEl.value = autoA.toFixed(1);
 
       setStats('<p>Site boundary saved. Adjust parameters and press <b>Generate Plan</b>.</p>');
       draw.deleteAll();
       map.getCanvas().style.cursor = '';
     });
 
-    // Wire toolbar after DOM is ready (guard IDs)
+    // Wire toolbar
     wireToolbar();
 
-    // Immediate rerun on rotation change (if site exists)
+    // Re-run on rotation change (if site exists)
     const angleEl = $('rotationAngle');
     if (angleEl) {
-      const apply = () => { if (siteBoundary) generateHomes(map, siteBoundary); };
-      ['input','change','blur'].forEach(evt => angleEl.addEventListener(evt, apply));
+      const apply = () => { if (siteBoundary) generateHomesSafe(map, siteBoundary, roads); };
+      ['input', 'change', 'blur'].forEach(evt => angleEl.addEventListener(evt, apply));
       angleEl.addEventListener('keyup', (e) => { if (e.key === 'Enter') apply(); });
     }
   });
 
-  // ---- Toolbar wiring (safe) ----
+  // ===== Toolbar wiring (safe) =====
   function wireToolbar() {
     const drawSiteBtn  = $('drawSite');
     const fillHomesBtn = $('fillHomes');
@@ -152,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!draw) return;
         draw.deleteAll();
         siteBoundary = null;
+        roads = [];
         refreshSite();
         clearHomes();
         draw.changeMode('draw_polygon');
@@ -161,13 +165,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (fillHomesBtn) {
-      fillHomesBtn.onclick = () => generateHomes(map, siteBoundary);
+      fillHomesBtn.onclick = () => {
+        try {
+          generateHomesSafe(map, siteBoundary, roads);
+        } catch (err) {
+          console.error('Generate Plan failed:', err);
+          setStats('<p style="color:#b91c1c"><strong>Couldn’t generate.</strong> Open the console for details.</p>');
+          alert('Generate Plan failed. See console for details.');
+        }
+      };
     }
 
     if (clearAllBtn) {
       clearAllBtn.onclick = () => {
         if (draw) draw.deleteAll();
         siteBoundary = null;
+        roads = [];
         refreshSite();
         clearHomes();
         setStats('');
@@ -175,73 +188,102 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ---- Render helpers ----
+  // ===== Rendering helpers =====
   function refreshSite() {
-    const src = map.getSource('site-view');
-    if (src) src.setData(siteBoundary ? fc([siteBoundary]) : emptyFC());
+    map.getSource('site-view')?.setData(siteBoundary ? fc([siteBoundary]) : emptyFC());
   }
   function clearHomes() {
-    const src = map.getSource('homes');
-    if (src) src.setData(emptyFC());
+    map.getSource('homes')?.setData(emptyFC());
   }
-  function setStats(html) { const el = $('stats'); if (el) el.innerHTML = html; }
+  function setStats(html) {
+    const el = $('stats');
+    if (el) el.innerHTML = html;
+  }
 
-  // ---- Home generator (short edge along rotation) ----
-  function generateHomes(map, site) {
+  // ===== Generate (robust) =====
+  function generateHomesSafe(map, site, roads) {
     if (!site) { alert('Draw the site boundary first.'); return; }
 
-    // Read UI params
-    const homeWidthM   = parseFloat($('homeWidth')?.value)    || 9;  // short side/frontage
-    const homeDepthM   = parseFloat($('homeDepth')?.value)    || 12; // long side
-    const frontSetback = parseFloat($('frontSetback')?.value) || 5;  // gap front/back
-    const sideGapM     = parseFloat($('sideGap')?.value)      || 2;  // gap left/right
-    // These two are reserved for future (blocks/roads)
-    const roadWidth    = parseFloat($('roadWidth')?.value)    || 9;
-    const lotsPerBlock = parseFloat($('lotsPerBlock')?.value) || 5;
+    // 1) Inputs (guarded)
+    const num = (id, def) => {
+      const v = parseFloat($(id)?.value);
+      return Number.isFinite(v) && v > 0 ? v : def;
+    };
+    const homeWidthM   = num('homeWidth', 9);     // short side/frontage
+    const homeDepthM   = num('homeDepth', 12);    // long side
+    const frontSetback = num('frontSetback', 5);  // gap front/back (between rows)
+    const sideGapM     = num('sideGap', 2);       // gap left/right
+    const edgeMarginM  = 0.6;                     // clearance from edges
 
-    // Rotation: manual or auto
-    const manual = parseFloat(($('rotationAngle')?.value || '').trim());
-    const angleDeg = Number.isFinite(manual) ? manual : getLongestEdgeAngle(site);
+    // Rotation (manual or auto)
+    const rawAngle = parseFloat(String($('rotationAngle')?.value || '').trim());
+    const angleDeg = Number.isFinite(rawAngle) ? rawAngle : getLongestEdgeAngle(site);
 
-    // Buildable = site inset (so full rects fit). If you later add roads, subtract them here too.
-    const edgeMarginM = 0.6; // clearance
+    // 2) Buildable = site − roads
+    let buildable = site;
+    if (Array.isArray(roads) && roads.length) {
+      try {
+        const roadsU = unionAll(roads);
+        const diff = turf.difference(site, roadsU);
+        if (diff) buildable = diff;
+      } catch (err) {
+        console.warn('Road difference failed; using full site.', err);
+      }
+    }
+
+    // 3) Inset so full rectangles fit (your block)
     const halfMax = Math.max(homeWidthM, homeDepthM) / 2;
     let placementArea;
     try {
-      placementArea = turf.buffer(site, -(halfMax + edgeMarginM), { units: 'meters' });
-      if (!placementArea ||
-          (placementArea.geometry.type !== 'Polygon' && placementArea.geometry.type !== 'MultiPolygon')) {
-        placementArea = site;
+      placementArea = turf.buffer(buildable, -(halfMax + edgeMarginM), { units: 'meters' });
+      if (
+        !placementArea ||
+        (placementArea.geometry.type !== 'Polygon' && placementArea.geometry.type !== 'MultiPolygon')
+      ) {
+        placementArea = buildable;
       }
-    } catch { placementArea = site; }
+    } catch (e) {
+      placementArea = buildable;
+    }
 
-    // Stats
-    const areaM2 = turf.area(placementArea);
-    const ha = areaM2 / 10000;
+    if (turf.area(placementArea) < (homeWidthM * homeDepthM)) {
+      map.getSource('homes')?.setData(emptyFC());
+      setStats('<p><strong>Buildable area too small</strong> for one home with current sizes.</p>');
+      return;
+    }
 
-    // meters → degrees (approx)
+    // 4) meters → degrees at site latitude (guard cos near poles)
     const lat = turf.center(placementArea).geometry.coordinates[1];
-    const { dLon, dLat } = metersToDegrees(lat);
+    const latR = lat * Math.PI / 180;
+    const dLat = 1 / 110540;
+    const cosLat = Math.max(0.0001, Math.cos(latR));
+    const dLon = 1 / (111320 * cosLat);
 
-    // We want short edge (width) along X in rotated frame; long edge (depth) along Y
-    const widthLon = homeWidthM * dLon;
-    const depthLat = homeDepthM * dLat;
-    const stepLon  = (homeWidthM + sideGapM) * dLon;    // spacing left/right (between long sides)
-    const stepLat  = (homeDepthM + frontSetback) * dLat; // spacing front/back (between short sides)
+    const widthLon = Math.max(1e-9, homeWidthM * dLon);
+    const depthLat = Math.max(1e-9, homeDepthM * dLat);
+    const stepLon  = Math.max(1e-9, (homeWidthM + sideGapM)    * dLon); // across short edges
+    const stepLat  = Math.max(1e-9, (homeDepthM + frontSetback)* dLat); // along long edges
 
-    // Rotate placement area into unrotated frame
+    // 5) Rotate area to axis frame, seed grid, rotate back
     const pivot = turf.center(placementArea).geometry.coordinates;
     const rotatedArea = turf.transformRotate(placementArea, -angleDeg, { pivot });
 
-    // Fill grid
     const [minX, minY, maxX, maxY] = turf.bbox(rotatedArea);
-    const homes = [];
-    for (let x = minX; x <= maxX; x += stepLon) {
-      for (let y = minY; y <= maxY; y += stepLat) {
-        const cx = x + stepLon / 2;
-        const cy = y + stepLat / 2;
+    const cols = Math.ceil((maxX - minX) / stepLon);
+    const rows = Math.ceil((maxY - minY) / stepLat);
+    const cells = cols * rows;
+    const MAX_CELLS = 50000;
+    const scale = cells > MAX_CELLS ? Math.sqrt(cells / MAX_CELLS) : 1;
 
-        const halfLon = widthLon / 2, halfLat = depthLat / 2;
+    const homes = [];
+    for (let x = minX; x <= maxX; x += stepLon * scale) {
+      for (let y = minY; y <= maxY; y += stepLat * scale) {
+        const cx = x + (stepLon * scale) / 2;
+        const cy = y + (stepLat * scale) / 2;
+
+        const halfLon = widthLon / 2;
+        const halfLat = depthLat / 2;
+
         const rect = turf.polygon([[
           [cx - halfLon, cy - halfLat],
           [cx + halfLon, cy - halfLat],
@@ -252,17 +294,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!turf.booleanWithin(rect, rotatedArea)) continue;
 
-        // Rotate back to map coords
         const rectBack = turf.transformRotate(rect, angleDeg, { pivot });
         homes.push(rectBack);
       }
     }
 
-    // Update map + stats
-    const src = map.getSource('homes');
-    if (src) src.setData(fc(homes));
+    // 6) Render + stats (use buildable for density)
+    const areaM2 = turf.area(buildable);
+    const ha = areaM2 / 10000;
+    map.getSource('homes')?.setData(fc(homes));
     setStats(`
-      <p><strong>Buildable (inset) area:</strong> ${Math.round(areaM2).toLocaleString()} m² (${ha.toFixed(2)} ha)</p>
+      <p><strong>Buildable area (site − roads):</strong> ${Math.round(areaM2).toLocaleString()} m² (${ha.toFixed(2)} ha)</p>
       <p><strong>Homes placed:</strong> ${homes.length}</p>
       <p><strong>Rotation used:</strong> ${angleDeg.toFixed(1)}°</p>
       <p><strong>Actual density:</strong> ${(homes.length / (ha || 1)).toFixed(1)} homes/ha</p>
