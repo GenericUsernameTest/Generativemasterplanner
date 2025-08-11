@@ -57,7 +57,7 @@ map.on('load', () => {
     id: 'site-fill',
     type: 'fill',
     source: 'site-view',
-    paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.2 }
+    paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.1 }
   });
   map.addLayer({
     id: 'site-outline',
