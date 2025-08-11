@@ -178,17 +178,29 @@ document.addEventListener('DOMContentLoaded', () => {
       };
     }
 
-    if (clearAllBtn) {
-      clearAllBtn.onclick = () => {
-        if (draw) draw.deleteAll();
-        siteBoundary = null;
-        roads = [];
-        refreshSite();
-        clearHomes();
-        setStats('');
-      };
+if (fillHomesBtn) {
+  fillHomesBtn.onclick = () => {
+    try {
+      fillHomesOrientedToRoads({
+        map,
+        siteBoundary,
+        roads,                                // ok if empty
+        getRotationDeg: () => {
+          const raw = parseFloat(String($('rotationAngle')?.value || '').trim());
+          return Number.isFinite(raw) ? raw : getLongestEdgeAngle(siteBoundary);
+        },
+        setStats: (html) => {
+          const el = $('stats'); if (el) el.innerHTML = html;
+        }
+      });
+    } catch (err) {
+      console.error('Generate Plan failed:', err);
+      const el = $('stats');
+      if (el) el.innerHTML = '<p style="color:#b91c1c"><strong>Couldn’t generate.</strong> Open the console for details.</p>';
+      alert('Generate Plan failed. See console for details.');
     }
-  }
+  };
+}
 
   // ===== Rendering helpers =====
   function refreshSite() {
