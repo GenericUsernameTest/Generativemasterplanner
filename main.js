@@ -84,7 +84,7 @@ map.on('load', () => {
     paint: {
       'fill-extrusion-color': '#6699ff',
       'fill-extrusion-height': ['coalesce', ['get', 'height'], 4],
-      'fill-extrusion-opacity': 0.75
+      'fill-extrusion-opacity': 1
     }
   });
 
