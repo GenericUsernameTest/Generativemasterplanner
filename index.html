@@ -1,43 +1,24 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Generative Masterplanner – Boundary, Roads & Homes</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-
-  <!-- Mapbox CSS -->
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-
-  <!-- Geocoder CSS -->
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
-
-  <!-- App CSS -->
-  <link rel="stylesheet" href="styles.css" />
-</head>
 <body>
-  <div id="logo-bar">
-  <img id="logo" src="logo.png" alt="Logo">
-</div>
-
   <!-- Top Navigation Bar -->
-<div id="top-nav">
-  <img id="logo" src="logo.png" alt="Logo">
-</div>
-  
+  <div id="top-nav">
+    <img id="brand-logo" src="logo.png" alt="Asembl logo">
+  </div>
+
   <div id="map"></div>
 
   <div class="info-box" id="stats"></div>
-  
+
   <div id="toolbar">
     <button id="drawSite">Draw Site Boundary</button>
     <button id="drawRoads">Draw Roads</button>
     <button id="fillHomes">Fill with Homes</button>
     <button id="clearAll">Clear All</button>
-  </div>
 
-  <label for="rotationAngle">Rotation (degrees):</label>
-<input type="number" id="rotationAngle" value="" placeholder="Auto" style="width:70px">
+    <div class="row" style="margin-top:8px">
+      <label for="rotationAngle" style="margin-right:6px;">Rotation (°)</label>
+      <input type="number" id="rotationAngle" placeholder="Auto" style="width:80px">
+    </div>
+  </div>
 
   <!-- Mapbox JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
@@ -48,4 +29,3 @@
   <!-- App JS -->
   <script src="main.js"></script>
 </body>
-</html>
