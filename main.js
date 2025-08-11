@@ -32,7 +32,9 @@ if (typeof MapboxGeocoder !== 'undefined') {
     marker: false, placeholder: 'Search', types: 'place,postcode,address,poi'
   });
   map.addControl(geocoder, 'top-left');
-  geocoder.on('result', (e) => map.easeTo({ center: e.result.center, zoom: 16, pitch: 60, bearing: -15 }));
+  geocoder.on('result', (e) =>
+    map.easeTo({ center: e.result.center, zoom: 16, pitch: 60, bearing: -15 })
+  );
 }
 
 // ====== STATE ======
@@ -41,6 +43,10 @@ let siteBoundary = null;
 let roads = [];
 const $ = (id) => document.getElementById(id);
 const setStats = (html) => { const el = $('stats'); if (el) el.innerHTML = html; };
+
+// Small helpers
+const emptyFC = () => ({ type: 'FeatureCollection', features: [] });
+const fc = (features) => ({ type: 'FeatureCollection', features });
 
 // ====== MAP LOAD ======
 map.on('load', () => {
@@ -83,7 +89,7 @@ map.on('load', () => {
 
   wireToolbar();
 
-  // Decide if a drawn polygon is the site or a road
+  // When a polygon is created, decide if it's site or road
   map.on('draw.create', (e) => {
     const feat = e.features[0];
     if (!feat || feat.geometry.type !== 'Polygon') return;
@@ -92,10 +98,10 @@ map.on('load', () => {
       siteBoundary = feat;
       refreshSite();
 
-      // Prefill rotation with auto bearing (rows along long edge)
-      const autoBearing = getLongestEdgeAngle(siteBoundary);
-      const angleInput  = $('rotationAngle');
-      if (angleInput) angleInput.value = autoBearing.toFixed(1);
+      // Prefill rotation with auto (rows along long boundary)
+      const auto = getLongestEdgeAngle(siteBoundary);
+      const inp = $('rotationAngle');
+      if (inp) inp.value = Number.isFinite(auto) ? auto.toFixed(1) : '';
 
       setStats('<p>Site boundary saved. Click <b>Draw Roads</b> to add road polygons, then <b>Fill with Homes</b>.</p>');
     } else {
@@ -107,12 +113,17 @@ map.on('load', () => {
     map.getCanvas().style.cursor = '';
   });
 
-  // Re-generate on manual rotation edit
-  const angleInput = $('rotationAngle');
-  if (angleInput) {
-    ['input','change'].forEach(evt => angleInput.addEventListener(evt, () => {
-      if (siteBoundary) doFill();
-    }));
+  // Rotation input — apply immediately on any change/typing/Enter
+  const angleEl = $('rotationAngle');
+  if (angleEl) {
+    const apply = () => {
+      if (!siteBoundary) return;
+      const v = parseFloat(String(angleEl.value).trim());
+      // allow empty -> auto; otherwise use the number
+      doFill(Number.isFinite(v) ? v : undefined);
+    };
+    ['input','change','blur'].forEach(evt => angleEl.addEventListener(evt, apply));
+    angleEl.addEventListener('keyup', (e) => { if (e.key === 'Enter') apply(); });
   }
 });
 
@@ -148,7 +159,7 @@ function wireToolbar() {
     setStats('<p>Drawing roads… add one or more polygons inside the site, double‑click to finish each.</p>');
   };
 
-  $('fillHomes').onclick = doFill;
+  $('fillHomes').onclick = () => doFill();
 
   $('clearAll').onclick = () => {
     draw.deleteAll(); siteBoundary = null; roads = [];
@@ -156,17 +167,29 @@ function wireToolbar() {
   };
 }
 
-function doFill() {
+// ====== Generate with optional manual angle ======
+function doFill(manualAngle) {
   if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
-  const manual = parseFloat($('rotationAngle')?.value);
+
+  const angleEl = $('rotationAngle');
+  let angleToUse;
+  if (typeof manualAngle === 'number') {
+    angleToUse = manualAngle;
+  } else {
+    // read the field; if empty/NaN -> auto
+    const v = parseFloat(String(angleEl?.value ?? '').trim());
+    angleToUse = Number.isFinite(v) ? v : NaN;
+  }
+
   const { stats } = fillHomes({
     map,
     siteBoundary,
     roads,
-    rotationDegrees: Number.isFinite(manual) ? manual : NaN,
+    rotationDegrees: angleToUse,   // NaN -> auto
     params: {
-      homeWidthM: 6.5,   // short (front) — will face long boundary
-      homeDepthM: 10,    // long
+      // SHORT side faces the long boundary by design (handled in homes.js)
+      homeWidthM: 6.5,
+      homeDepthM: 10,
       homeHeightM: 4,
       gapSideM: 2,
       gapFrontM: 5,
@@ -183,9 +206,7 @@ function doFill() {
   `);
 }
 
-// ====== Helpers ======
+// ====== Render helpers ======
 function refreshSite()  { map.getSource('site-view').setData(siteBoundary ? fc([siteBoundary]) : emptyFC()); }
 function refreshRoads() { map.getSource('roads-view').setData(roads.length ? fc(roads) : emptyFC()); }
 function clearHomes()   { map.getSource('homes').setData(emptyFC()); }
-function fc(features)   { return { type: 'FeatureCollection', features }; }
-function emptyFC()      { return { type: 'FeatureCollection', features: [] }; }
