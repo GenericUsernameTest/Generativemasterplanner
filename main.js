@@ -120,14 +120,14 @@ function wireToolbar() {
     clearHomes();
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing site boundary… click to add points, double‑click to finish.</p>');
+    setStats('<p>Drawing site boundary… click to add points, double-click to finish.</p>');
   };
 
   $('drawRoads').onclick = () => {
     if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
     draw.changeMode('draw_polygon');
     map.getCanvas().style.cursor = 'crosshair';
-    setStats('<p>Drawing roads… add one or more polygons inside the site, double‑click to finish each.</p>');
+    setStats('<p>Drawing roads… add one or more polygons inside the site, double-click to finish each.</p>');
   };
 
   $('fillHomes').onclick = () => fillHomes();
@@ -161,7 +161,7 @@ function unionAll(features) {
   return u;
 }
 
-// ====== Home generation (rect width/depth + road avoidance) ======
+// ====== Home generation (width, depth, gaps, height) ======
 function fillHomes() {
   if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
@@ -173,43 +173,40 @@ function fillHomes() {
     catch (err) { console.warn('difference failed; using site as buildable', err); }
   }
 
-  // --------- PARAMETERS (edit these) ---------
-  const density      = 40;  // homes/ha (grid pitch derived from this)
-  const homeWidthM   = 6.5;  // <<< building width (meters)
-  const homeDepthM   = 10;   // building depth (meters)
-  const homeHeightM  = 4;   // extrusion height (meters)
-  const edgeMarginM  = 0.5; // clearance from roads/boundary
-  // -------------------------------------------
+  // --------- PARAMETERS ---------
+  const homeWidthM   = 6.5;  // building width
+  const homeDepthM   = 10;   // building depth
+  const homeHeightM  = 4;    // extrusion height
+  const gapSideM     = 2;    // gap left/right
+  const gapFrontM    = 5;    // gap front/back
+  const edgeMarginM  = 0.5;  // clearance from edges
+  // ------------------------------
 
-  // Inset the buildable polygon so full homes fit inside (use larger half‑dimension)
+  // Inset buildable polygon so homes fit
   const halfMax = Math.max(homeWidthM, homeDepthM) / 2;
   let placementArea;
   try {
     placementArea = turf.buffer(buildable, -(halfMax + edgeMarginM), { units: 'meters' });
     if (!placementArea ||
         (placementArea.geometry.type !== 'Polygon' && placementArea.geometry.type !== 'MultiPolygon')) {
-      placementArea = buildable; // fallback
+      placementArea = buildable;
     }
   } catch (e) {
     console.warn('inset buffer failed, placing on original buildable', e);
     placementArea = buildable;
   }
 
-  // Stats (gross buildable after roads)
   const areaM2 = turf.area(buildable);
   const ha     = areaM2 / 10000;
 
-  // Grid pitch from density (independent of footprint size so density target holds)
-  const stepM  = Math.sqrt(10000 / density);
-
   // meters → degrees at site latitude
-  const lat     = turf.center(buildable).geometry.coordinates[1];
-  const dLat    = 1 / 110540;
-  const dLon    = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+  const lat      = turf.center(buildable).geometry.coordinates[1];
+  const dLat     = 1 / 110540;
+  const dLon     = 1 / (111320 * Math.cos(lat * Math.PI / 180));
   const widthLon = homeWidthM * dLon;
   const depthLat = homeDepthM * dLat;
-  const stepLon  = stepM * dLon;
-  const stepLat  = stepM * dLat;
+  const stepLon  = (homeWidthM + gapSideM) * dLon;
+  const stepLat  = (homeDepthM + gapFrontM) * dLat;
 
   const bbox  = turf.bbox(buildable);
   const homes = [];
@@ -218,7 +215,6 @@ function fillHomes() {
     for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
       const cx = x + stepLon / 2, cy = y + stepLat / 2;
 
-      // Rectangle centered at (cx, cy)
       const halfLon = widthLon / 2, halfLat = depthLat / 2;
       const homePoly = turf.polygon([[
         [cx - halfLon, cy - halfLat],
@@ -228,7 +224,6 @@ function fillHomes() {
         [cx - halfLon, cy - halfLat]
       ]], { height: homeHeightM });
 
-      // Require whole rectangle to be inside placement area
       if (turf.booleanWithin(homePoly, placementArea)) {
         homes.push(homePoly);
       }
