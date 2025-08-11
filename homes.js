@@ -1,4 +1,4 @@
-import * as turf from '@turf/turf';
+// homes.js – FAFO edition with CDN Turf support
 
 export function generateMasterplan(siteBoundary, opts) {
   const {
@@ -25,7 +25,7 @@ export function generateMasterplan(siteBoundary, opts) {
 
   const roads = [];
 
-  // Avenues (parallel to rotation axis)
+  // Avenues
   for (let y = minY; y <= maxY; y += blockDepthM * m2lat) {
     const line = turf.transformRotate(
       turf.lineString([[minX, y], [maxX, y]]),
@@ -109,4 +109,17 @@ export function generateMasterplan(siteBoundary, opts) {
     });
     return turf.polygon([pts]);
   }
+}
+
+export function getLongestEdgeAngle(polygon) {
+  let maxLen = 0, bestBearing = 0;
+  const coords = turf.polygonToLine(polygon).geometry.coordinates;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const len = turf.distance(coords[i], coords[i + 1], { units: 'meters' });
+    if (len > maxLen) {
+      maxLen = len;
+      bestBearing = turf.bearing(coords[i], coords[i + 1]);
+    }
+  }
+  return bestBearing;
 }
