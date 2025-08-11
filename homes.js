@@ -1,26 +1,14 @@
-// homes.js — home infill + geometry helpers
+// homes.js — short-front homes aligned to site's longest edge
 
-// Public: longest-edge bearing (degrees)
+// ---------- Public API ----------
 export function getLongestEdgeAngle(polygon) {
-  const coords = polygon.geometry.coordinates[0];
-  let longestAngle = 0, longestDist = 0;
-  for (let i = 0; i < coords.length - 1; i++) {
-    const p1 = turf.point(coords[i]);
-    const p2 = turf.point(coords[i + 1]);
-    const dist = turf.distance(p1, p2, { units: 'meters' });
-    if (dist > longestDist) {
-      longestDist = dist;
-      longestAngle = turf.bearing(p1, p2);
-    }
-  }
-  return longestAngle;
+  return longestEdgeInfo(polygon).angle;
 }
 
-// Public: place homes (short/front along longest edge)
-export function fillHomes({ map, siteBoundary, roads, setStats }) {
+export function fillHomes({ map, siteBoundary, roads, setStats, manualAngle }) {
   if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
-  // Buildable = site − union(roads)
+  // 1) Buildable = site − union(roads)
   let buildable = siteBoundary;
   if (roads?.length) {
     const roadsU = unionAll(roads);
@@ -28,17 +16,19 @@ export function fillHomes({ map, siteBoundary, roads, setStats }) {
     catch (err) { console.warn('difference failed; using site as buildable', err); }
   }
 
-  // --------- PARAMETERS ---------
-  const HOME_FRONT_M  = 6.5;  // short edge (frontage) ALONG boundary
-  const HOME_DEPTH_M  = 10;   // long edge (depth) PERPENDICULAR
-  const HOME_HEIGHT_M = 4;    // extrusion height
+  // --------- PARAMETERS (edit as needed) ---------
+  const HOME_FRONT_M  = 6.5;   // short edge (frontage) ALONG boundary (X)
+  const HOME_DEPTH_M  = 10;    // long edge (depth) PERPENDICULAR (Y)
+  const HOME_HEIGHT_M = 4;     // extrusion height
 
-  const GAP_SIDE_M    = 2;    // gap between frontages (left/right)
-  const GAP_FRONT_M   = 5;    // gap between rows (front/back)
-  const EDGE_MARGIN_M = 0.5;  // inset from edges
-  // ------------------------------
+  const GAP_SIDE_M    = 2;     // gap left/right between frontages in a row
+  const GAP_FRONT_M   = 5;     // gap front/back between rows
+  const EDGE_MARGIN_M = 0.6;   // set-on from boundary/roads
 
-  // Inset so homes fit fully
+  const DEBUG = false;         // set true to draw debug lines/points
+  // ------------------------------------------------
+
+  // 2) Inset buildable so homes fit fully inside
   const halfMax = Math.max(HOME_FRONT_M, HOME_DEPTH_M) / 2;
   let placementArea;
   try {
@@ -52,54 +42,76 @@ export function fillHomes({ map, siteBoundary, roads, setStats }) {
     placementArea = buildable;
   }
 
-  // Stats
+  // 3) Stats
   const areaM2 = turf.area(buildable);
   const ha     = areaM2 / 10000;
 
-  // meters → degrees at site latitude (approx)
-  const lat   = turf.center(buildable).geometry.coordinates[1];
-  const dLat  = 1 / 110540;
-  const dLon  = 1 / (111320 * Math.cos(lat * Math.PI / 180));
+  // 4) Find longest edge (bearing in degrees, Mapbox/turf convention)
+  const le = longestEdgeInfo(siteBoundary);
 
-  // FRONT along X (boundary direction), DEPTH along Y
-  const frontLon = HOME_FRONT_M * dLon;
-  const depthLat = HOME_DEPTH_M * dLat;
+  // 5) Angle to align X axis with the boundary’s longest edge (manual override if provided)
+  let angle = Number.isFinite(manualAngle) ? manualAngle : le.angle;
 
-  const stepLon  = (HOME_FRONT_M + GAP_SIDE_M)  * dLon; // spacing left/right
-  const stepLat  = (HOME_DEPTH_M + GAP_FRONT_M) * dLat; // spacing front/back
-
-  // Rotation: manual (if typed) else auto longest-edge
-  const manualAngle = parseFloat(document.getElementById('rotationAngle')?.value);
-  const angle = isNaN(manualAngle) ? getLongestEdgeAngle(siteBoundary) : manualAngle;
-
-  // Work in rotated frame where rows are axis-aligned, then rotate homes back
+  // 6) Work in a rotated frame: X=along edge, Y=inward
   const pivot = turf.center(placementArea).geometry.coordinates;
   const rotatedArea = turf.transformRotate(placementArea, -angle, { pivot });
 
-  const bbox  = turf.bbox(rotatedArea);
+  // 7) Determine “inward” sign (which Y direction goes inside the site)
+  // Compare the rotated edge midpoint Y with the rotated site centroid Y.
+  const ring = siteBoundary.geometry.coordinates[0];
+  const p1R = turf.transformRotate(turf.point(ring[le.i]),   -angle, { pivot });
+  const p2R = turf.transformRotate(turf.point(ring[le.i+1]), -angle, { pivot });
+  const yEdgeMid  = (p1R.geometry.coordinates[1] + p2R.geometry.coordinates[1]) / 2;
+  const siteCentR = turf.transformRotate(turf.center(siteBoundary), -angle, { pivot });
+  const yCentroid = siteCentR.geometry.coordinates[1];
+  const inwardSign = (yCentroid >= yEdgeMid) ? 1 : -1;
+
+  // Optional debug: draw the longest edge in green
+  if (DEBUG) {
+    drawDebug(map, 'debug-edge', turf.lineString([ring[le.i], ring[le.i+1]]), '#16a34a');
+  }
+
+  // 8) Meters → degrees at site latitude (approx)
+  const lat   = turf.center(buildable).geometry.coordinates[1];
+  const dLat  = 1 / 110540; // deg per meter north/south
+  const dLon  = 1 / (111320 * Math.cos(lat * Math.PI / 180)); // deg per meter east/west
+
+  // FRONT (short) along X, DEPTH (long) along Y
+  const frontLon = HOME_FRONT_M * dLon;  // width (lon delta)
+  const depthLat = HOME_DEPTH_M * dLat;  // height (lat delta)
+
+  // Grid spacing
+  const stepLon  = (HOME_FRONT_M + GAP_SIDE_M)  * dLon; // along edge
+  const stepLat  = (HOME_DEPTH_M + GAP_FRONT_M) * dLat; // inward
+
+  // 9) Grid bounds in rotated space
+  const bbox = turf.bbox(rotatedArea);
+  const minX = bbox[0], minY = bbox[1], maxX = bbox[2], maxY = bbox[3];
+
+  // Start the first row next to the longest edge (push inward by half depth + margin)
+  const startY = yEdgeMid + inwardSign * (depthLat / 2 + EDGE_MARGIN_M * dLat);
+
+  // 10) Build rectangles in rotated space and rotate back
   const homes = [];
 
-  for (let x = bbox[0]; x < bbox[2]; x += stepLon) {
-    for (let y = bbox[1]; y < bbox[3]; y += stepLat) {
-      const cx = x + stepLon / 2, cy = y + stepLat / 2;
-
-      // Rectangle in rotated space (FRONT along X, DEPTH along Y)
+  for (let y = startY; inwardSign > 0 ? (y < maxY) : (y > minY); y += inwardSign * stepLat) {
+    for (let x = minX + stepLon/2; x < maxX; x += stepLon) {
       const halfLon = frontLon / 2, halfLat = depthLat / 2;
       const rect = turf.polygon([[
-        [cx - halfLon, cy - halfLat],
-        [cx + halfLon, cy - halfLat],
-        [cx + halfLon, cy + halfLat],
-        [cx - halfLon, cy + halfLat],
-        [cx - halfLon, cy - halfLat]
+        [x - halfLon, y - halfLat],
+        [x + halfLon, y - halfLat],
+        [x + halfLon, y + halfLat],
+        [x - halfLon, y + halfLat],
+        [x - halfLon, y - halfLat]
       ]], { height: HOME_HEIGHT_M });
 
       if (turf.booleanWithin(rect, rotatedArea)) {
-        const rectBack = turf.transformRotate(rect, angle, { pivot });
-        homes.push(rectBack);
+        homes.push(turf.transformRotate(rect, angle, { pivot }));
       }
     }
   }
 
+  // 11) Render
   map.getSource('homes').setData(fc(homes));
 
   setStats?.(`
@@ -108,9 +120,34 @@ export function fillHomes({ map, siteBoundary, roads, setStats }) {
     <p><strong>Rotation used:</strong> ${angle.toFixed(1)}°</p>
     <p><strong>Actual density:</strong> ${(homes.length / ha || 0).toFixed(1)} homes/ha</p>
   `);
+
+  // Optional debug: show start line
+  if (DEBUG) {
+    const startLine = turf.transformRotate(
+      turf.lineString([[minX, startY], [maxX, startY]]),
+      angle, { pivot }
+    );
+    drawDebug(map, 'debug-start-row', startLine, '#ff6600');
+  }
 }
 
-// ----- internal helpers (kept private to this module) -----
+// ---------- Internal helpers ----------
+function longestEdgeInfo(poly) {
+  const ring = poly.geometry.coordinates[0];
+  let best = { i: 0, len: -1, angle: 0 };
+  for (let i = 0; i < ring.length - 1; i++) {
+    const p1 = turf.point(ring[i]);
+    const p2 = turf.point(ring[i+1]);
+    const len = turf.distance(p1, p2, { units: 'meters' });
+    if (len > best.len) {
+      best.len   = len;
+      best.angle = turf.bearing(p1, p2); // degrees, -180..180
+      best.i     = i;
+    }
+  }
+  return best;
+}
+
 function unionAll(features) {
   if (!features?.length) return null;
   let u = features[0];
@@ -120,4 +157,28 @@ function unionAll(features) {
   }
   return u;
 }
+
 function fc(features) { return { type: 'FeatureCollection', features }; }
+
+// Debug drawing utility (optional)
+function drawDebug(map, id, geom, color = '#000') {
+  const srcId = `${id}-src`;
+  const lyrId = `${id}-lyr`;
+  const data = (geom.type === 'Feature') ? geom : { type: 'Feature', geometry: geom, properties: {} };
+  try {
+    if (map.getSource(srcId)) map.getSource(srcId).setData(data);
+    else map.addSource(srcId, { type: 'geojson', data });
+
+    if (map.getLayer(lyrId)) map.removeLayer(lyrId);
+    map.addLayer({
+      id: lyrId,
+      type: data.geometry.type === 'LineString' ? 'line' : 'circle',
+      source: srcId,
+      paint: data.geometry.type === 'LineString'
+        ? { 'line-color': color, 'line-width': 2 }
+        : { 'circle-color': color, 'circle-radius': 4 }
+    });
+  } catch (e) {
+    // ignore if style not ready yet
+  }
+}
