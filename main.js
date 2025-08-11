@@ -80,12 +80,36 @@ map.on('load', () => {
     }
   });
 
-  // Draw
-  draw = new MapboxDraw({
-    displayControlsDefault: false,
-    controls: { polygon: true, trash: true }
-  });
-  map.addControl(draw);
+draw = new MapboxDraw({
+  displayControlsDefault: false,
+  controls: { polygon: true, trash: true },
+  styles: MapboxDraw.styles.map(style => {
+    // Active drawing outline (normally green dashed)
+    if (style.id === 'gl-draw-polygon-stroke-active') {
+      return {
+        ...style,
+        paint: {
+          'line-color': '#16a34a', // same green as final site
+          'line-width': 4
+        }
+      };
+    }
+
+    // Inactive polygon outline (normally orange)
+    if (style.id === 'gl-draw-polygon-stroke-inactive') {
+      return {
+        ...style,
+        paint: {
+          'line-color': '#16a34a', // match final boundary color
+          'line-width': 4
+        }
+      };
+    }
+
+    return style;
+  })
+});
+map.addControl(draw);
 
   wireToolbar();
 
