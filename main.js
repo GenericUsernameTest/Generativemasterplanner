@@ -57,7 +57,7 @@ map.on('load', () => {
     id: 'site-view',
     type: 'line',
     source: 'site-view',
-    paint: { 'line-color': '#16a34a', 'line-width': 3 }
+    paint: { 'line-color': '#16a34a', 'line-width': 10 }
   });
 
   map.addSource('roads-view', { type: 'geojson', data: emptyFC() });
