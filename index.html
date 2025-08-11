@@ -14,7 +14,7 @@
     body { margin: 0; padding: 0; font-family: sans-serif; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-    /* Top nav with logo */
+    /* Top nav with single logo */
     #top-nav {
       position: fixed;
       top: 0;
@@ -30,7 +30,7 @@
     }
     #top-nav img {
       height: 28px;
-      margin-right: 8px;
+      display: block;
     }
 
     /* Toolbar as a fixed-width panel (top-right) */
@@ -78,13 +78,12 @@
   <!-- Top Navigation Bar -->
   <div id="top-nav">
     <img src="logo.png" alt="Asembl Logo">
-    <strong>Asembl</strong>
   </div>
-  
+
   <div id="map"></div>
 
   <div class="info-box" id="stats"></div>
-  
+
   <div id="toolbar">
     <button id="drawSite">Draw Site Boundary</button>
     <button id="drawRoads">Draw Roads</button>
