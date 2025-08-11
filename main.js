@@ -92,7 +92,7 @@ map.on('load', () => {
     const edits = [
       // Active polygon stroke (green while drawing)
       ['gl-draw-polygon-stroke-active',   'line-color', '#16a34a'],
-      ['gl-draw-polygon-stroke-active',   'line-width', 4],
+      ['gl-draw-polygon-stroke-active',   'line-width', 2],
 
       // Inactive polygon stroke (orange by default)
       ['gl-draw-polygon-stroke-inactive', 'line-color', '#16a34a'],
