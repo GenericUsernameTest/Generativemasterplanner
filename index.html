@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="utf-8" />
   <title>Generative Masterplanner – Boundary, Roads & Homes</title>
@@ -10,22 +10,11 @@
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
 
-  <!-- App CSS -->
-  <link rel="stylesheet" href="styles.css" />
-
   <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
-    }
-    #map {
-      position: absolute;
-      top: 50px;
-      bottom: 0;
-      width: 100%;
-    }
+    body { margin: 0; padding: 0; font-family: sans-serif; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+    /* Top nav with logo */
     #top-nav {
       position: fixed;
       top: 0;
@@ -35,67 +24,77 @@
       background: white;
       display: flex;
       align-items: center;
-      padding: 0 10px;
-      border-bottom: 1px solid #ccc;
-      z-index: 1000;
+      padding: 0 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 1001;
     }
     #top-nav img {
-      height: 30px;
+      height: 28px;
+      margin-right: 8px;
     }
+
+    /* Toolbar as a fixed-width panel (top-right) */
     #toolbar {
-      position: absolute;
+      position: fixed;
       top: 60px;
-      left: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 8px;
-      border-radius: 4px;
+      right: 12px;
+      width: 320px;
+      background: rgba(255,255,255,0.92);
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 8px;
       z-index: 1000;
     }
-    .info-box {
-      position: absolute;
-      bottom: 10px;
-      left: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 8px;
-      border-radius: 4px;
-      font-size: 13px;
-      max-width: 260px;
-      z-index: 1000;
+    #toolbar button,
+    #toolbar label,
+    #toolbar input[type="number"] {
+      width: 100%;
     }
     #rotationAngle {
-      margin-top: 5px;
-      padding: 3px;
+      padding: 6px 8px;
       font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    /* Stats box */
+    #stats {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: white;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      line-height: 1.4;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      z-index: 1000;
     }
   </style>
 </head>
 <body>
-
   <!-- Top Navigation Bar -->
   <div id="top-nav">
-    <img src="logo.png" alt="Logo">
+    <img src="logo.png" alt="Asembl Logo">
+    <strong>Asembl</strong>
   </div>
-
-  <!-- Map -->
+  
   <div id="map"></div>
 
-  <!-- Toolbar -->
+  <div class="info-box" id="stats"></div>
+  
   <div id="toolbar">
     <button id="drawSite">Draw Site Boundary</button>
     <button id="drawRoads">Draw Roads</button>
     <button id="fillHomes">Fill with Homes</button>
     <button id="clearAll">Clear All</button>
     <label for="rotationAngle">Rotation (degrees):</label>
-    <input type="number" id="rotationAngle" value="" placeholder="Auto" style="width:80px">
+    <input type="number" id="rotationAngle" value="" placeholder="Auto">
   </div>
 
-  <!-- Stats -->
-  <div class="info-box" id="stats"></div>
-
-  <!-- Mapbox & Turf JS -->
+  <!-- Mapbox JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
