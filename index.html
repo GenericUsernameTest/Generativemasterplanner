@@ -2,59 +2,86 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner</title>
+  <title>Generative Masterplanner – Boundary, Roads & Homes</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
   <!-- Mapbox CSS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-
-  <!-- Geocoder CSS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
 
   <!-- App CSS -->
   <link rel="stylesheet" href="styles.css" />
-  <style>
-    /* Ensure logo is never massive */
-    #site-logo {
-      height: 40px;
-      width: auto;
-    }
 
-    #top-nav {
-      display: flex;
-      align-items: center;
-      padding: 8px 12px;
-      background: #fff;
-      border-bottom: 1px solid #ddd;
-      position: relative;
-      z-index: 2;
+  <style>
+    /* Bigger buttons/inputs globally */
+    #toolbar button, #toolbar input, #toolbar label {
+      font-size: 14px;
     }
+    #toolbar button {
+      padding: 8px 10px;
+    }
+    #rotationSlider { width: 180px; }
+
+    /* Toggle switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+    }
+    .switch input { display:none; }
+    .slider {
+      position:absolute; cursor:pointer; inset:0;
+      background:#ccc; transition:.2s; border-radius:26px;
+    }
+    .slider:before {
+      position:absolute; content:""; height:20px; width:20px; left:3px; top:3px;
+      background:#fff; transition:.2s; border-radius:50%;
+      box-shadow:0 1px 3px rgba(0,0,0,.25);
+    }
+    .switch input:checked + .slider { background:#16a34a; }
+    .switch input:checked + .slider:before { transform:translateX(22px); }
   </style>
 </head>
 <body>
-  <!-- Top Navigation Bar with logo -->
-  <div id="top-nav">
-    <img id="site-logo" src="logo.png" alt="Logo">
+  <!-- Logo bar -->
+  <div id="logo-bar">
+    <img id="logo" src="logo.png" alt="Logo">
   </div>
-  
-  <!-- Map -->
+
+  <!-- Top Navigation Bar -->
+  <div id="top-nav">
+    <img id="logo" src="logo.png" alt="Logo">
+  </div>
+
   <div id="map"></div>
 
-  <!-- Stats -->
   <div class="info-box" id="stats"></div>
   
-  <!-- Toolbar -->
   <div id="toolbar">
     <button id="drawSite">Draw Site Boundary</button>
     <button id="drawRoads">Draw Roads</button>
     <button id="fillHomes">Fill with Homes</button>
     <button id="clearAll">Clear All</button>
-  </div>
 
-  <!-- Rotation input -->
-  <label for="rotationAngle">Rotation (degrees):</label>
-  <input type="number" id="rotationAngle" value="" placeholder="Auto" style="width:70px">
+    <!-- Rotation Controls -->
+    <div id="rotate-controls" style="margin-top:10px">
+      <div class="row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <label class="switch">
+          <input type="checkbox" id="autoRotate" checked>
+          <span class="slider"></span>
+        </label>
+        <span>Auto rotation (align to longest edge)</span>
+      </div>
+
+      <div class="row" style="display:flex;align-items:center;gap:8px">
+        <label for="rotationAngle">Rotation (°)</label>
+        <input type="range" id="rotationSlider" min="-180" max="180" step="1" value="0" disabled>
+        <input type="number" id="rotationAngle" placeholder="0" style="width:80px" disabled>
+      </div>
+    </div>
+  </div>
 
   <!-- Mapbox JS -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
@@ -64,5 +91,36 @@
 
   <!-- App JS -->
   <script src="main.js"></script>
+
+  <!-- Rotation UI JS -->
+  <script>
+    const autoBox     = document.getElementById('autoRotate');
+    const angleInput  = document.getElementById('rotationAngle');
+    const angleSlider = document.getElementById('rotationSlider');
+
+    function syncRotationUI() {
+      const auto = autoBox?.checked ?? true;
+      if (angleInput)  angleInput.disabled  = auto;
+      if (angleSlider) angleSlider.disabled = auto;
+      if (auto && angleInput) angleInput.value = '';
+    }
+
+    autoBox?.addEventListener('change', () => {
+      syncRotationUI();
+      if (window.siteBoundary) fillHomes();
+    });
+
+    angleSlider?.addEventListener('input', () => {
+      if (angleInput) angleInput.value = angleSlider.value;
+      if (window.siteBoundary && !autoBox.checked) fillHomes();
+    });
+
+    angleInput?.addEventListener('input', () => {
+      if (angleSlider && angleInput.value !== '') angleSlider.value = angleInput.value;
+      if (window.siteBoundary && !autoBox.checked) fillHomes();
+    });
+
+    syncRotationUI();
+  </script>
 </body>
 </html>
