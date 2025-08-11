@@ -5,63 +5,38 @@
   <title>Generative Masterplanner – Boundary, Roads & Homes</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
 
-  <!-- Mapbox GL JS (core) -->
-  <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" />
-
-  <!-- Mapbox GL Draw -->
+  <!-- CSS (use unpkg for plugins to avoid CORB; core can be Mapbox or unpkg) -->
+  <link rel="stylesheet" href="https://unpkg.com/mapbox-gl@3.14.0/dist/mapbox-gl.css" />
   <link rel="stylesheet" href="https://unpkg.com/@mapbox/mapbox-gl-draw@1.5.0/dist/mapbox-gl-draw.css" />
-
-  <!-- Mapbox GL Geocoder -->
   <link rel="stylesheet" href="https://unpkg.com/@mapbox/mapbox-gl-geocoder@5.0.1/dist/mapbox-gl-geocoder.css" />
 
   <style>
     body { margin: 0; padding: 0; font-family: sans-serif; }
     #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
-    /* Top nav with logo */
     #top-nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 50px;
-      background: white;
-      display: flex; align-items: center;
-      padding: 0 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 1001;
+      position: fixed; top: 0; left: 0; right: 0; height: 50px;
+      background: white; display: flex; align-items: center; padding: 0 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1001;
     }
     #top-nav img { height: 28px; display: block; }
 
-    /* Toolbar */
     #toolbar {
-      position: fixed;
-      top: 60px; right: 12px;
-      width: 320px;
-      background: rgba(255,255,255,0.92);
-      padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-      display: flex; flex-direction: column; gap: 8px;
-      z-index: 1000;
+      position: fixed; top: 60px; right: 12px; width: 320px;
+      background: rgba(255,255,255,0.92); padding: 10px; border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12); display: flex; flex-direction: column; gap: 8px; z-index: 1000;
     }
     #toolbar button, #toolbar label, #toolbar input[type="number"] { width: 100%; }
     #rotationAngle { padding: 6px 8px; font-size: 14px; box-sizing: border-box; }
 
-    /* Stats */
     #stats {
-      position: fixed; bottom: 20px; left: 20px;
-      background: white;
-      padding: 10px; border-radius: 6px;
-      font-size: 14px; line-height: 1.4;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      z-index: 1000;
+      position: fixed; bottom: 20px; left: 20px; background: white; padding: 10px;
+      border-radius: 6px; font-size: 14px; line-height: 1.4; box-shadow: 0 2px 6px rgba(0,0,0,0.15); z-index: 1000;
     }
   </style>
 </head>
 <body>
-  <!-- Top Navigation -->
-  <div id="top-nav">
-    <img src="logo.png" alt="Asembl Logo">
-  </div>
+  <div id="top-nav"><img src="logo.png" alt="Asembl Logo"></div>
 
   <div id="map"></div>
   <div id="stats"></div>
@@ -93,13 +68,13 @@
     <input type="number" id="lotsPerBlock" value="5">
   </div>
 
-  <!-- JS Libraries -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+  <!-- JS (all from unpkg to avoid CORS/CORB issues) -->
+  <script src="https://unpkg.com/mapbox-gl@3.14.0/dist/mapbox-gl.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://unpkg.com/@mapbox/mapbox-gl-draw@1.5.0/dist/mapbox-gl-draw.js"></script>
   <script src="https://unpkg.com/@mapbox/mapbox-gl-geocoder@5.0.1/dist/mapbox-gl-geocoder.min.js"></script>
 
-  <!-- Your app -->
+  <!-- App -->
   <script type="module" src="main.js"></script>
 </body>
 </html>
