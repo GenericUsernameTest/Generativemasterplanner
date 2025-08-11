@@ -16,7 +16,7 @@ export function generateMasterplan(siteBoundary, opts) {
   const D  = Math.max(1, +homeD || 12);
   const FS = Math.max(0, +frontSetback || 5);
   const SG = Math.max(0, +sideGap || 2);
-  const RW = Math.max(2, +roadW || 10);
+  const RW = Math.max(2, +roadW || 9);
   const LPB= Math.max(1, +lotsPerBlock || 5);
 
   // meters->degrees (rough) at site latitude
