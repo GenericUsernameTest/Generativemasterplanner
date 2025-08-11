@@ -1,6 +1,22 @@
 body { margin: 0; padding: 0; }
 #map { position: absolute; top: 0; bottom: 0; width: 100%; }
 
+/* Logo overlay */
+#logo-bar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10; /* Above the map */
+  background: rgba(255, 255, 255, 0.85);
+  padding: 5px 8px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+#logo {
+  height: 30px;
+}
+
 #toolbar {
   position: absolute;
   top: 10px;
