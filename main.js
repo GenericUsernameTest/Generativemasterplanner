@@ -49,6 +49,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    map.addSource('entrance-road', { type: 'geojson', data: { type:'FeatureCollection', features: [] }});
+map.addLayer({
+  id: 'entrance-road',
+  type: 'fill',
+  source: 'entrance-road',
+  paint: { 'fill-color': '#6b7280', 'fill-opacity': 0.6 }
+});
+
     draw = new MapboxDraw({ displayControlsDefault: false, controls: { polygon: true, trash: true } });
     map.addControl(draw);
 
