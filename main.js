@@ -3,21 +3,14 @@ mapboxgl.accessToken =
   'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
 
-// ================= HOUSE TYPES =================
-const HOUSE_TYPES = {
-  t1: { w: 5,  d: 5  }, // Type 1 — 5x5
-  t2: { w: 5,  d: 8  }, // Type 2 — 5x8
-  t3: { w: 10, d: 8  }  // Type 3 — 10x8
-};
-
 // ================= UTILS ==================
 const $ = (id) => document.getElementById(id);
 const emptyFC = () => ({ type: 'FeatureCollection', features: [] });
 const fc = (features) => ({ type: 'FeatureCollection', features });
-function clamp(n, a, b){ return Math.min(Math.max(n, a), b); }
 
 function setStats(html) { const el = $('stats'); if (el) el.innerHTML = html; }
 
+// Bearing of the longest site edge (deg)
 function getLongestEdgeAngle(polygon) {
   const ring = polygon?.geometry?.coordinates?.[0] || [];
   let bestDist = 0, bestAngle = 0;
@@ -40,6 +33,13 @@ function metersToDeg(latDeg){
   const dLon = 1 / (111320 * Math.max(0.0001, Math.cos(latR)));
   return { dLat, dLon };
 }
+
+// Standard house types
+const HOUSE_TYPES = {
+  t1: { w: 5,  d: 5,  color: '#ff6666' }, // red
+  t2: { w: 5,  d: 8,  color: '#66cc66' }, // green
+  t3: { w: 10, d: 8,  color: '#6699ff' }  // blue
+};
 
 // ================= APP ====================
 document.addEventListener('DOMContentLoaded', () => {
@@ -91,7 +91,14 @@ document.addEventListener('DOMContentLoaded', () => {
       type: 'fill-extrusion',
       source: 'homes',
       paint: {
-        'fill-extrusion-color': '#6699ff',
+        // 🎨 Color by type (t1/t2/t3)
+        'fill-extrusion-color': [
+          'match', ['get', 'type'],
+          't1', HOUSE_TYPES.t1.color,
+          't2', HOUSE_TYPES.t2.color,
+          't3', HOUSE_TYPES.t3.color,
+          '#cccccc' // default
+        ],
         'fill-extrusion-height': ['coalesce', ['get', 'height'], 4],
         'fill-extrusion-opacity': 0.78
       }
@@ -127,18 +134,18 @@ document.addEventListener('DOMContentLoaded', () => {
       siteBoundary = feat;
       refreshSite();
 
-      // Prefill rotation with auto if blank
+      // Prefill rotation with auto if input exists
       const autoA = getLongestEdgeAngle(siteBoundary);
       const angleEl = $('rotationAngle');
       if (angleEl && (angleEl.value ?? '') === '') angleEl.value = autoA.toFixed(1);
 
-      setStats('<p>Site boundary saved. Pick a house type and click <b>Generate Plan</b> (or tweak inputs for live updates).</p>');
+      setStats('<p>Site boundary saved. Pick a house type and click <b>Generate Plan</b>.</p>');
       draw.deleteAll();
       map.getCanvas().style.cursor = '';
     });
 
     wireToolbar();
-    wireLiveUpdates(); // live updates when inputs change
+    wireLiveUpdates(); // live re-gen on parameter changes
   });
 
   // -------- Toolbar wiring --------
@@ -163,10 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (genBtn) {
       genBtn.onclick = () => {
         try { generatePlan(); }
-        catch (err) {
-          console.error(err);
-          alert('Generate Plan failed. Check console for details.');
-        }
+        catch (err) { console.error(err); alert('Generate Plan failed. Check console for details.'); }
       };
     }
 
@@ -180,21 +184,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function clearOutputs(){
-    map.getSource('homes')?.setData(emptyFC());
-    setStats('');
-  }
-
-  // -------- Live updates when inputs change --------
+  // Live updates when user tweaks controls
   function wireLiveUpdates() {
     const ids = ['rotationAngle', 'houseType', 'frontSetback', 'sideGap'];
     ids.forEach(id => {
       const el = $(id);
       if (!el) return;
-      const apply = () => { if (siteBoundary) { try { generatePlan(); } catch(e){ console.warn(e); } } };
-      ['change', 'input', 'blur'].forEach(evt => el.addEventListener(evt, apply));
+      const apply = () => { if (siteBoundary) generatePlan(); };
+      ['change','input','blur'].forEach(evt => el.addEventListener(evt, apply));
       el.addEventListener('keyup', (e) => { if (e.key === 'Enter') apply(); });
     });
+  }
+
+  function clearOutputs(){
+    map.getSource('homes')?.setData(emptyFC());
+    setStats('');
   }
 
   // -------- Rendering helpers --------
@@ -202,19 +206,15 @@ document.addEventListener('DOMContentLoaded', () => {
     map.getSource('site-view')?.setData(siteBoundary ? fc([siteBoundary]) : emptyFC());
   }
 
-  // ============ CORE: Homes from selected type ============
+  // ============ CORE: Homes (by selected type) ============
   function generatePlan() {
     if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
 
     // Inputs
-    const num = (id, def) => {
-      const v = parseFloat($(id)?.value);
-      return Number.isFinite(v) && v > 0 ? v : def;
-    };
     const typeKey = ($('houseType')?.value) || 't1';
-    const { w: homeW, d: homeD } = HOUSE_TYPES[typeKey];   // width = short side (front), depth = long side
-    const front  = num('frontSetback', 5);                 // row spacing
-    const side   = num('sideGap', 2);                      // sideways house gap
+    const { w: homeW, d: homeD } = HOUSE_TYPES[typeKey];
+    const front  = parseFloat($('frontSetback')?.value) || 5; // row spacing
+    const side   = parseFloat($('sideGap')?.value) || 2;      // sideways gap
 
     // Rotation
     const rawAngle = parseFloat(String($('rotationAngle')?.value || '').trim());
@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lat  = turf.center(site).geometry.coordinates[1];
     const { dLat, dLon } = metersToDeg(lat);
 
-    // 1) Inset buildable so full rectangles fit
+    // Inset buildable by half home size so full rectangles fit
     const edgeMarginM = 0.6;
     const halfMax = Math.max(homeW, homeD) / 2;
     let placementArea;
@@ -240,17 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
       placementArea = site;
     }
 
-    if (turf.area(placementArea) < (homeW * homeD)) {
-      map.getSource('homes')?.setData(emptyFC());
-      setStats('<p><strong>Buildable area too small</strong> for one home with current type.</p>');
-      return;
-    }
+    // Place homes on a straight grid aligned to angleDeg
+    const { dLat: dLatP, dLon: dLonP } = metersToDeg(turf.center(placementArea).geometry.coordinates[1]);
 
-    // 2) Place homes on a straight grid aligned with rotation
-    const widthLon = Math.max(1e-9, homeW * dLon);
-    const depthLat = Math.max(1e-9, homeD * dLat);
-    const stepLon  = Math.max(1e-9, (homeW + side)  * dLon); // across short edges
-    const stepLat  = Math.max(1e-9, (homeD + front) * dLat); // along long edges
+    const widthLon = Math.max(1e-9, homeW * dLonP);
+    const depthLat = Math.max(1e-9, homeD * dLatP);
+    const stepLon  = Math.max(1e-9, (homeW + side)  * dLonP); // across short edges
+    const stepLat  = Math.max(1e-9, (homeD + front) * dLatP); // along long edges
 
     const pivot = turf.center(placementArea).geometry.coordinates;
     const placeRot = turf.transformRotate(placementArea, -angleDeg, { pivot });
@@ -262,32 +258,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const cx = x + stepLon / 2;
         const cy = y + stepLat / 2;
 
-        // axis-aligned rect in rotated frame (short edge along X, long edge along Y)
+        // axis-aligned rect in rotated frame (short edge along X)
         const halfLon = widthLon / 2;
         const halfLat = depthLat / 2;
+
         const rect = turf.polygon([[
           [cx - halfLon, cy - halfLat],
           [cx + halfLon, cy - halfLat],
           [cx + halfLon, cy + halfLat],
           [cx - halfLon, cy + halfLat],
           [cx - halfLon, cy - halfLat]
-        ]], { height: 4 });
+        ]]);
 
         if (!turf.booleanWithin(rect, placeRot)) continue;
 
-        // rotate back to map frame
-        const rectBack = turf.transformRotate(rect, angleDeg, { pivot });
+        // rotate back to map frame + tag with type & height
+        let rectBack = turf.transformRotate(rect, angleDeg, { pivot });
+        rectBack.properties = {
+          type: typeKey,
+          w: homeW,
+          d: homeD,
+          height: 4 // keep consistent height, or vary by type if you prefer
+        };
         homes.push(rectBack);
       }
     }
 
-    // 3) Render + stats
-    const buildableArea = turf.area(placementArea);
+    // Render + stats
+    const buildableArea = turf.area(placementArea); // close enough for feedback
     const ha = buildableArea / 10000;
     map.getSource('homes')?.setData(fc(homes));
     setStats(`
-      <p><strong>Buildable area:</strong> ${Math.round(buildableArea).toLocaleString()} m² (${ha.toFixed(2)} ha)</p>
+      <p><strong>House type:</strong> ${typeKey.toUpperCase()} — ${homeW}m × ${homeD}m</p>
       <p><strong>Homes placed:</strong> ${homes.length}</p>
+      <p><strong>Buildable area (inset):</strong> ${Math.round(buildableArea).toLocaleString()} m² (${ha.toFixed(2)} ha)</p>
       <p><strong>Rotation used:</strong> ${angleDeg.toFixed(1)}°</p>
       <p><strong>Actual density:</strong> ${(homes.length / (ha || 1)).toFixed(1)} homes/ha</p>
     `);
