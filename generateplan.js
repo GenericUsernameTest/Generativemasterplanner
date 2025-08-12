@@ -194,7 +194,7 @@ export function generatePlan(map, siteBoundary) {
   }
 
   // ===== 6) Render + stats =====
-  const ha = turf.area(buildable) / 10000;
+  const ha = turf.area(siteBoundary) / 10000;
   map.getSource('homes')?.setData(fc(homes));
   setStats(`
     <p><strong>Homes placed:</strong> ${homes.length}</p>
