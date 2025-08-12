@@ -173,5 +173,5 @@ export function createroads(siteBoundary, entranceLine, opts = {}) {
   }
 }
 
-// Also export as default so `import createRoads from './createroads.js'` works too.
+// Also export as default so `import createroads from './createroads.js'` works too.
 export default createRoads;
