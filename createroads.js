@@ -1,74 +1,76 @@
-// roads.js
-// Lightweight curved roads with entrance picking + cul-de-sac
+// createRoads.js
+import { fc, emptyFC, unionAll, metersToDeg } from './utils.js';
 
-export function initRoads(map) {
-  const state = {
-    picking: false,
-    clicks: [],
-    entranceLine: null,    // LineString (smoothed)
-    entranceRoadPoly: null // Polygon (buffered)
-  };
+/**
+ * Generates a road network for the site.
+ * @param {Object} siteBoundary - Polygon feature of the site.
+ * @param {Object} entranceRoad - LineString feature defining the main entrance road.
+ * @param {Object} options - Road generation settings.
+ * @returns {FeatureCollection} - Roads as a FeatureCollection.
+ */
+export function createRoads(siteBoundary, entranceRoad, options = {}) {
+  if (!siteBoundary) throw new Error('No site boundary provided.');
+  if (!entranceRoad) throw new Error('No entrance road provided.');
 
-  const handlers = {
-    click: (e) => {
-      if (!state.picking) return;
-      state.clicks.push([e.lngLat.lng, e.lngLat.lat]);
-      if (state.clicks.length === 2) {
-        // Build a bezier entrance road from 2 points (add a mid control)
-        const [a, b] = state.clicks;
-        const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-        // nudge mid to create a gentle curve
-        const ctrl = [mid[0], mid[1] + 0.0005];
+  const {
+    mainRoadWidth = 8,
+    localRoadWidth = 5,
+    blockDepth = 50,   // meters between parallel roads
+    blockWidth = 80,   // meters between cross roads
+  } = options;
 
-        const raw = turf.lineString([a, ctrl, b]);
-        const smooth = turf.bezierSpline(raw, { sharpness: 0.7 });
+  const lat = turf.center(siteBoundary).geometry.coordinates[1];
+  const { dLat, dLon } = metersToDeg(lat);
 
-        state.entranceLine = smooth;
+  // 1) Start with the entrance road inside the site
+  const roadFeatures = [entranceRoad];
 
-        // Default 5m road width — buffer line to a polygon
-        const roadPoly = turf.buffer(smooth, 2.5, { units: 'meters' });
+  // 2) Extend the entrance road into the site until it hits the far side
+  // (For now, just straight extension; curves can be added later)
+  const entranceEnd = entranceRoad.geometry.coordinates[1];
+  const directionVec = turf.destination(
+    entranceEnd,
+    1000,
+    turf.bearing(entranceRoad.geometry.coordinates[0], entranceEnd),
+    { units: 'meters' }
+  );
 
-        // Add a cul‑de‑sac at the end (circle buffer at end point)
-        const end = smooth.geometry.coordinates.at(-1);
-        const bulb = turf.buffer(turf.point(end), 7.5, { units: 'meters' });
+  const extended = turf.lineString([
+    entranceRoad.geometry.coordinates[0],
+    directionVec.geometry.coordinates
+  ]);
+  const clippedMain = turf.intersect(
+    turf.buffer(extended, mainRoadWidth / 2, { units: 'meters' }),
+    siteBoundary
+  );
 
-        // Merge road + bulb
-        const merged = turf.union(roadPoly, bulb);
-        state.entranceRoadPoly = merged;
+  if (clippedMain) roadFeatures.push(clippedMain);
 
-        // Draw to a source if it exists
-        const src = map.getSource('entrance-road');
-        if (src) src.setData(merged);
+  // 3) Generate local grid roads branching off the main road
+  // For now, we use straight horizontal/vertical lines in rotated frame.
+  const siteBBox = turf.bbox(siteBoundary);
+  const [minX, minY, maxX, maxY] = siteBBox;
 
-        state.picking = false;
-        state.clicks = [];
-      }
-    }
-  };
+  const lonSpacing = blockWidth * dLon;
+  const latSpacing = blockDepth * dLat;
 
-  function startPicking() {
-    state.picking = true;
-    state.clicks = [];
+  // Parallel roads (north-south)
+  for (let x = minX; x <= maxX; x += lonSpacing) {
+    const line = turf.lineString([[x, minY], [x, maxY]]);
+    const buf = turf.buffer(line, localRoadWidth / 2, { units: 'meters' });
+    const inter = turf.intersect(buf, siteBoundary);
+    if (inter) roadFeatures.push(inter);
   }
 
-  function cancelPicking() {
-    state.picking = false;
-    state.clicks = [];
+  // Cross roads (east-west)
+  for (let y = minY; y <= maxY; y += latSpacing) {
+    const line = turf.lineString([[minX, y], [maxX, y]]);
+    const buf = turf.buffer(line, localRoadWidth / 2, { units: 'meters' });
+    const inter = turf.intersect(buf, siteBoundary);
+    if (inter) roadFeatures.push(inter);
   }
 
-  function getRoadPolygon() {
-    return state.entranceRoadPoly || null;
-  }
-
-  function clearRoad() {
-    state.entranceLine = null;
-    state.entranceRoadPoly = null;
-    const src = map.getSource('entrance-road');
-    if (src) src.setData({ type: 'FeatureCollection', features: [] });
-  }
-
-  // Hook handler
-  map.on('click', handlers.click);
-
-  return { startPicking, cancelPicking, getRoadPolygon, clearRoad };
+  // 4) Union all roads into one FeatureCollection
+  const merged = unionAll(roadFeatures.filter(Boolean));
+  return merged ? fc([merged]) : emptyFC();
 }
