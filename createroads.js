@@ -1,7 +1,7 @@
 // createroads.js  — organic roads from a user-picked entrance
-// Exports: createRoads(siteBoundary: Feature<Polygon|MultiPolygon>, entranceLine: Feature<LineString>, options?)
+// Exports: createroads(siteBoundary: Feature<Polygon|MultiPolygon>, entranceLine: Feature<LineString>, options?)
 
-export function createRoads(siteBoundary, entranceLine, opts = {}) {
+export function createroads(siteBoundary, entranceLine, opts = {}) {
   // ------- Options (meters) -------
   const mainRoadWidth   = clamp(opts.mainRoadWidth,   6, 14)   ?? 8;  // primary carriageway
   const localRoadWidth  = clamp(opts.localRoadWidth,  4, 10)   ?? 5;  // spurs
