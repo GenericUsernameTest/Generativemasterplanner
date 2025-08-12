@@ -1,4 +1,4 @@
-// createRoads.js
+// createroads.js
 import { fc, emptyFC, unionAll, metersToDeg } from './utils.js';
 
 /**
@@ -8,7 +8,7 @@ import { fc, emptyFC, unionAll, metersToDeg } from './utils.js';
  * @param {Object} options - Road generation settings.
  * @returns {FeatureCollection} - Roads as a FeatureCollection.
  */
-export function createRoads(siteBoundary, entranceRoad, options = {}) {
+export function createroads(siteBoundary, entranceRoad, options = {}) {
   if (!siteBoundary) throw new Error('No site boundary provided.');
   if (!entranceRoad) throw new Error('No entrance road provided.');
 
