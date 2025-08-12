@@ -1,6 +1,6 @@
 // generateplan.js
 import { $, emptyFC, fc, setStats, getLongestEdgeAngle, unionAll, metersToDeg } from './utils.js';
-import { createroads } from './createroads.js';
+import { createRoads } from './createRoads.js';
 
 export function generatePlan(map, siteBoundary, entranceRoad) {
   if (!siteBoundary) return alert('Draw the site boundary first.');
@@ -22,7 +22,7 @@ export function generatePlan(map, siteBoundary, entranceRoad) {
   let roadsFC = emptyFC();
   try {
     if (entranceRoad) {
-      roadsFC = createroads(siteBoundary, entranceRoad, {
+      roadsFC = createRoads(siteBoundary, entranceRoad, {
         mainRoadWidth: 8,
         localRoadWidth: 5,
         blockDepth: (homeD + front) * 2,      // space for two rows between parallel roads
@@ -30,7 +30,7 @@ export function generatePlan(map, siteBoundary, entranceRoad) {
       });
     } else {
       // Fallback tiny grid if user hasn’t drawn an entrance road yet
-      roadsFC = createroads(
+      roadsFC = createRoads(
         siteBoundary,
         // make a short “fake” entrance from site centroid to north
         turf.lineString([
@@ -46,7 +46,7 @@ export function generatePlan(map, siteBoundary, entranceRoad) {
       );
     }
   } catch (e) {
-    console.warn('createroads failed; continuing without roads', e);
+    console.warn('createRoads failed; continuing without roads', e);
     roadsFC = emptyFC();
   }
 
