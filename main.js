@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const homeD  = num('homeDepth', 12);      // long side
     const front  = num('frontSetback', 5);    // row spacing
     const side   = num('sideGap', 2);         // sideways house gap
-    const rWidth = clamp(num('roadWidth', 9), 4, 60); // road width (m)
+    const rWidth = clamp(num('roadWidth', 5), 4, 60); // road width (m)
     const lotsPB = clamp(num('lotsPerBlock', 5), 1, 20);
 
     // Rotation
