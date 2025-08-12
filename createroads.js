@@ -1,158 +1,74 @@
-// main.js — wire UI + Mapbox Draw for polygon (site) and line (access road)
-import { $, emptyFC, fc, setStats, getLongestEdgeAngle } from './utils.js';
-import { generatePlan } from './generateplan.js';
+// createroads.js — minimal, safe named export
 
-mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
-const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
+export function createRoads(siteBoundary, entranceLine, opts = {}) {
+  const fc = (features=[]) => ({ type: 'FeatureCollection', features });
+  const meters = { units: 'meters' };
 
-document.addEventListener('DOMContentLoaded', () => {
-  const savedView = JSON.parse(localStorage.getItem('mapView') || '{}');
+  // Guard inputs
+  if (!isPoly(siteBoundary) || !isLine(entranceLine)) return fc([]);
 
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: STYLE_URL,
-    center: savedView.center || [0, 20],
-    zoom: typeof savedView.zoom === 'number' ? savedView.zoom : 2,
-    pitch: savedView.pitch || 0,
-    bearing: savedView.bearing || 0
-  });
+  // widths (meters)
+  const mainRoadWidth  = clamp(num(opts.mainRoadWidth, 8),  3, 30);
+  const localRoadWidth = clamp(num(opts.localRoadWidth, 5),  3, 20);
 
-  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-  map.on('moveend', () => {
-    localStorage.setItem('mapView', JSON.stringify({
-      center: map.getCenter().toArray(),
-      zoom: map.getZoom(),
-      pitch: map.getPitch(),
-      bearing: map.getBearing()
-    }));
-  });
+  // 1) Smooth entrance a touch (safe)
+  const smooth = tryBezier(entranceLine, 0.2);
 
-  // ---------- state ----------
-  let draw;
-  let siteBoundary = null;     // Feature<Polygon|MultiPolygon>
-  let entranceRoad = null;     // Feature<LineString>
+  // 2) Clip the entrance inside the site (best effort)
+  const inside = clipLineInside(smooth, siteBoundary) || smooth;
 
-  map.on('load', () => {
-    // Sources & layers
-    map.addSource('site-view',   { type: 'geojson', data: emptyFC() });
-    map.addSource('roads-view',  { type: 'geojson', data: emptyFC() });
-    map.addSource('homes',       { type: 'geojson', data: emptyFC() });
-    map.addSource('access-line', { type: 'geojson', data: emptyFC() });
-
-    map.addLayer({ id: 'site-fill', type: 'fill', source: 'site-view',
-      paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.12 }});
-    map.addLayer({ id: 'site-view', type: 'line', source: 'site-view',
-      paint: { 'line-color': '#16a34a', 'line-width': 4, 'line-opacity': 0.9 }});
-
-    map.addLayer({ id: 'roads-view', type: 'fill', source: 'roads-view',
-      paint: { 'fill-color': '#9ca3af', 'fill-opacity': 0.55 }});
-
-    map.addLayer({ id: 'access-line', type: 'line', source: 'access-line',
-      paint: { 'line-color': '#111827', 'line-width': 3, 'line-dasharray': [2,1], 'line-opacity': 0.85 }});
-
-    map.addLayer({
-      id: 'homes', type: 'fill-extrusion', source: 'homes',
-      paint: {
-        'fill-extrusion-color': ['coalesce', ['get', 'color'], '#6699ff'],
-        'fill-extrusion-height': 4,
-        'fill-extrusion-opacity': 0.78
-      }
-    });
-
-    // Draw control: polygon + line
-    draw = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: { polygon: true, line_string: true, trash: true }
-    });
-    map.addControl(draw);
-
-    // Handle new drawings
-    map.on('draw.create', onDrawChange);
-    map.on('draw.update', onDrawChange);
-
-    wireToolbar();
-  });
-
-  function onDrawChange(e){
-    const f = e.features?.[0];
-    if (!f) return;
-
-    if (f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon') {
-      siteBoundary = f;
-      refreshSite();
-      // auto-rotation hint
-      const autoA = getLongestEdgeAngle(siteBoundary);
-      const angleEl = $('rotationAngle');
-      if (angleEl && (angleEl.value ?? '') === '') angleEl.value = autoA.toFixed(1);
-      setStats('<p>Site saved. Now draw your <b>Access Road</b> (Line), then Generate.</p>');
-      // keep the polygon, but clear draw canvas to avoid accidental edits
-      draw.deleteAll();
-    }
-
-    if (f.geometry?.type === 'LineString') {
-      entranceRoad = f;
-      map.getSource('access-line')?.setData(fc([entranceRoad]));
-      // don’t delete line — show it for clarity
-    }
+  // 3) Buffer to polygon and clip to site
+  let mainPoly = null;
+  try {
+    const buf = turf.buffer(inside, mainRoadWidth / 2, meters);
+    mainPoly = intersectSafe(buf, siteBoundary);
+  } catch (e) {
+    console.warn('buffer failed', e);
   }
 
-  function wireToolbar() {
-    $('drawSite').onclick = () => {
-      clearOutputs();
-      siteBoundary = null;
-      entranceRoad = null;
-      refreshSite();
-      map.getSource('access-line')?.setData(emptyFC());
-      draw.deleteAll();
-      draw.changeMode('draw_polygon');
-      setStats('<p>Draw the site boundary: click to add points, double‑click to finish.</p>');
-    };
+  return fc(mainPoly ? [mainPoly] : []);
 
-    const pickBtn = document.getElementById('pickEntrance');
-    if (pickBtn) {
-      pickBtn.onclick = () => {
-        if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
-        draw.changeMode('draw_line_string');
-        setStats('<p>Draw the main access road (curved allowed). Double‑click to finish.</p>');
-      };
-    }
+  // ---------- helpers ----------
+  function num(v, d){ const n = Number(v); return Number.isFinite(n) ? n : d; }
+  function clamp(n,a,b){ return Math.min(Math.max(n,a), b); }
 
-    $('fillHomes').onclick = () => generateNow();
-    $('clearAll').onclick = () => {
-      clearOutputs();
-      siteBoundary = null;
-      entranceRoad = null;
-      refreshSite();
-      map.getSource('access-line')?.setData(emptyFC());
-      draw.deleteAll();
-    };
-
-    // Live updates when parameters change (if we have a site)
-    ['rotationAngle', 'houseType', 'frontSetback', 'sideGap'].forEach(id => {
-      const el = $(id);
-      if (!el) return;
-      el.addEventListener('input', () => {
-        if (siteBoundary) generateNow();
-      });
-    });
+  function isPoly(f){
+    return f && f.type === 'Feature' && f.geometry &&
+      (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
+  }
+  function isLine(f){
+    return f && f.type === 'Feature' && f.geometry &&
+      f.geometry.type === 'LineString' &&
+      Array.isArray(f.geometry.coordinates) &&
+      f.geometry.coordinates.length >= 2 &&
+      f.geometry.coordinates.every(c => Array.isArray(c) && c.length === 2 && isFinite(c[0]) && isFinite(c[1]));
   }
 
-  function generateNow(){
+  function tryBezier(line, sharpness=0.2){
+    try { return turf.bezierSpline(line, { sharpness, resolution: 10000 }); }
+    catch { return line; }
+  }
+
+  // keep longest segment inside polygon
+  function clipLineInside(line, poly){
     try {
-      generatePlan(map, siteBoundary, entranceRoad);
-    } catch (err) {
-      console.error(err);
-      alert('Generate Plan failed. Check console for details.');
-    }
+      const parts = turf.lineSplit(line, poly);
+      if (!parts?.features?.length) return null;
+      const inside = parts.features.filter(seg => {
+        const mid = turf.along(seg, turf.length(seg, {units: 'kilometers'})/2, {units: 'kilometers'});
+        return turf.booleanPointInPolygon(mid, poly);
+      });
+      if (!inside.length) return null;
+      let best = inside[0], bestLen = turf.length(best);
+      for (let i=1;i<inside.length;i++){
+        const L = turf.length(inside[i]);
+        if (L > bestLen){ best = inside[i]; bestLen = L; }
+      }
+      return best;
+    } catch { return null; }
   }
 
-  function clearOutputs() {
-    map.getSource('roads-view')?.setData(emptyFC());
-    map.getSource('homes')?.setData(emptyFC());
-    setStats('');
+  function intersectSafe(a, b){
+    try { return turf.intersect(a, b) || null; } catch { return null; }
   }
-
-  function refreshSite() {
-    map.getSource('site-view')?.setData(siteBoundary ? fc([siteBoundary]) : emptyFC());
-  }
-});
+}
