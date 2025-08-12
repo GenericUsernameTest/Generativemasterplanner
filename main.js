@@ -1,5 +1,5 @@
 import { $, emptyFC, fc, setStats, getLongestEdgeAngle } from './utils.js';
-import { generateplan } from './generateplan.js';
+import { generatePlan } from './generateplan.js';
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
