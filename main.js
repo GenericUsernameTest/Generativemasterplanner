@@ -1,7 +1,7 @@
 // main.js
 import { $, emptyFC, fc, setStats, getLongestEdgeAngle } from './utils.js';
 import { generatePlan } from './generateplan.js';
-import { createRoads } from './createroads.js';
+import { createroads } from './createroads.js';
 
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
