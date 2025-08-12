@@ -2,8 +2,7 @@
 import { $, emptyFC, fc, setStats, getLongestEdgeAngle } from './utils.js';
 import { generatePlan } from './generateplan.js';
 
-mapboxgl.accessToken =
-  'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
+mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,26 +27,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   });
 
-  // -------- state --------
-  let draw;
-  let siteBoundary = null;
-  let entranceRoad = null;         // LineString feature
-  let pickingEntrance = false;     // flag while drawing entrance
+  // ---- App state ----
+  let draw = null;                 // Mapbox Draw (for site polygon)
+  let siteBoundary = null;         // Polygon
+  let entranceRoad = null;         // LineString (two-point)
+  let pickingEntrance = false;     // picking mode toggle
+  let entrancePts = [];            // clicked points while picking
 
   map.on('load', () => {
-    // site
+    // Sources & layers
     map.addSource('site-view', { type: 'geojson', data: emptyFC() });
     map.addLayer({ id: 'site-fill', type: 'fill', source: 'site-view',
       paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.12 }});
-    map.addLayer({ id: 'site-view', type: 'line', source: 'site-view',
+    map.addLayer({ id: 'site-view-line', type: 'line', source: 'site-view',
       paint: { 'line-color': '#16a34a', 'line-width': 4, 'line-opacity': 0.9 }});
 
-    // roads (generated)
     map.addSource('roads-view', { type: 'geojson', data: emptyFC() });
     map.addLayer({ id: 'roads-view', type: 'fill', source: 'roads-view',
       paint: { 'fill-color': '#9ca3af', 'fill-opacity': 0.55 }});
 
-    // homes
+    // Entrance line preview
+    map.addSource('entrance-view', { type: 'geojson', data: emptyFC() });
+    map.addLayer({ id: 'entrance-line', type: 'line', source: 'entrance-view',
+      paint: { 'line-color': '#111827', 'line-width': 4, 'line-dasharray': [2,2] }});
+
     map.addSource('homes', { type: 'geojson', data: emptyFC() });
     map.addLayer({
       id: 'homes', type: 'fill-extrusion', source: 'homes',
@@ -58,141 +61,130 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // entrance road (user line)
-    map.addSource('entrance-src', { type: 'geojson', data: emptyFC() });
-    map.addLayer({
-      id: 'entrance-line',
-      type: 'line',
-      source: 'entrance-src',
-      paint: {
-        'line-color': '#0ea5e9',
-        'line-width': 4,
-        'line-dasharray': [2, 2]
-      }
-    });
-
-    // draw control
-    draw = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: { polygon: true, trash: true }
-    });
+    // Draw control: polygon for site
+    // (Kept simple: polygon + trash)
+    // If you hit CSP warnings, switch to mapbox-gl-csp build as we discussed.
+    // eslint-disable-next-line no-undef
+    draw = new MapboxDraw({ displayControlsDefault: false, controls: { polygon: true, trash: true } });
     map.addControl(draw);
 
-    // Handle new drawings (site or entrance)
     map.on('draw.create', (e) => {
       const feat = e.features?.[0];
-      if (!feat) return;
+      if (!feat || feat.geometry.type !== 'Polygon') return;
+      siteBoundary = feat;
+      refreshSite();
+      const autoA = getLongestEdgeAngle(siteBoundary);
+      if ($('rotationAngle').value === '') $('rotationAngle').value = autoA.toFixed(1);
+      setStats('<p>Site boundary saved. Adjust parameters.</p>');
+      draw.deleteAll();
+    });
 
-      if (pickingEntrance && feat.geometry.type === 'LineString') {
-        // Save entrance, clean up temp drawing
-        entranceRoad = feat;
-        pickingEntrance = false;
-        updateEntranceLayer();
-        // remove the temp feature from draw so it doesn't stick around
-        try { draw.delete(feat.id); } catch {}
-        map.getCanvas().style.cursor = '';
+    // Mouse clicks for entrance picking
+    map.on('click', (ev) => {
+      if (!pickingEntrance) return;
+      const ll = [ev.lngLat.lng, ev.lngLat.lat];
 
-        // Generate using current site + entrance (3rd arg is optional in your function)
-        if (siteBoundary) generatePlan(map, siteBoundary, entranceRoad);
+      // First click: start point
+      if (entrancePts.length === 0) {
+        entrancePts.push(ll);
+        map.getCanvas().style.cursor = 'crosshair';
+        previewEntrance();
         return;
       }
-
-      if (feat.geometry.type === 'Polygon') {
-        siteBoundary = feat;
-        updateSite();
-        // seed rotation
-        const autoA = getLongestEdgeAngle(siteBoundary);
-        const angleEl = $('rotationAngle');
-        if (angleEl && angleEl.value === '') angleEl.value = autoA.toFixed(1);
-        setStats('<p>Site boundary saved. Adjust parameters.</p>');
-        // tidy the draw canvas
-        try { draw.deleteAll(); } catch {}
-        map.getCanvas().style.cursor = '';
+      // Second click: end point -> finalize
+      if (entrancePts.length === 1) {
+        entrancePts.push(ll);
+        finalizeEntrance();
+        return;
       }
     });
 
     wireToolbar();
   });
 
+  // ----- Toolbar wiring -----
   function wireToolbar() {
-    const drawBtn     = $('drawSite');
-    const genBtn      = $('fillHomes');
-    const clearBtn    = $('clearAll');
-    const pickEntBtn  = $('pickEntrance');
-    const clearEntBtn = $('clearEntrance');
+    $('drawSite').onclick = () => {
+      clearOutputs(); siteBoundary = null; refreshSite();
+      draw.deleteAll(); draw.changeMode('draw_polygon');
+      map.getCanvas().style.cursor = 'crosshair';
+      setStats('<p>Drawing site boundary… click to add points, double‑click to finish.</p>');
+    };
 
-    if (drawBtn) {
-      drawBtn.onclick = () => {
-        clearOutputs();
-        siteBoundary = null;
-        updateSite();
-        try { draw.deleteAll(); } catch {}
-        draw.changeMode('draw_polygon');
-        map.getCanvas().style.cursor = 'crosshair';
-        setStats('<p>Drawing site boundary… click to add points, double‑click to finish.</p>');
-      };
-    }
+    $('fillHomes').onclick = () => generateNow();
+    $('clearAll').onclick = () => {
+      clearOutputs();
+      siteBoundary = null; refreshSite();
+      draw.deleteAll();
+      exitEntranceMode();
+    };
 
-    if (genBtn) {
-      genBtn.onclick = () => {
-        if (!siteBoundary) return alert('Draw the site boundary first.');
-        generatePlan(map, siteBoundary, entranceRoad);
-      };
-    }
+    const pickBtn = $('pickEntrance');
+    const clearEntrBtn = $('clearEntrance');
+    if (pickBtn)  pickBtn.onclick = () => enterEntranceMode();
+    if (clearEntrBtn) clearEntrBtn.onclick = () => { entranceRoad = null; entrancePts = []; previewEntrance(); };
 
-    if (clearBtn) {
-      clearBtn.onclick = () => {
-        pickingEntrance = false;
-        entranceRoad = null;
-        siteBoundary = null;
-        try { draw.deleteAll(); } catch {}
-        clearOutputs();
-        updateSite();
-        updateEntranceLayer();
-        setStats('');
-      };
-    }
-
-    if (pickEntBtn) {
-      pickEntBtn.onclick = () => {
-        if (!siteBoundary) return alert('Draw the site boundary first.');
-        pickingEntrance = true;
-        // switch to line drawing mode
-        draw.changeMode('draw_line_string');
-        map.getCanvas().style.cursor = 'crosshair';
-        setStats('<p>Pick entrance: click start on site edge, click inside to set direction, double‑click to finish.</p>');
-      };
-    }
-
-    if (clearEntBtn) {
-      clearEntBtn.onclick = () => {
-        entranceRoad = null;
-        pickingEntrance = false;
-        updateEntranceLayer();
-        setStats('<p>Entrance road cleared.</p>');
-      };
-    }
-
-    // Live updates
-    ['rotationAngle', 'houseType', 'frontSetback', 'sideGap'].forEach(id => {
-      const el = $(id);
-      if (!el) return;
-      el.addEventListener('input', () => {
-        if (siteBoundary) generatePlan(map, siteBoundary, entranceRoad);
-      });
+    // Live update
+    ['rotationAngle','houseType','frontSetback','sideGap'].forEach(id => {
+      const el = $(id); if (!el) return;
+      el.addEventListener('input', () => { if (siteBoundary) generateNow(); });
     });
   }
 
-  // helpers
-  function updateSite() {
+  // ----- Helpers -----
+  function refreshSite() {
     map.getSource('site-view')?.setData(siteBoundary ? fc([siteBoundary]) : emptyFC());
-  }
-  function updateEntranceLayer() {
-    map.getSource('entrance-src')?.setData(entranceRoad ? fc([entranceRoad]) : emptyFC());
   }
   function clearOutputs() {
     map.getSource('roads-view')?.setData(emptyFC());
     map.getSource('homes')?.setData(emptyFC());
-    map.getSource('entrance-src')?.setData(emptyFC());
+    map.getSource('entrance-view')?.setData(emptyFC());
+    setStats('');
+  }
+  function generateNow() {
+    try {
+      generatePlan(map, siteBoundary, entranceRoad || null);
+    } catch (e) {
+      console.error(e);
+      alert('Generate Plan failed. Check console.');
+    }
+  }
+
+  // Entrance picking UX
+  function enterEntranceMode() {
+    if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
+    pickingEntrance = true;
+    entrancePts = [];
+    map.getCanvas().style.cursor = 'crosshair';
+    setStats('<p>Click a start point for the entrance road, then click the end point.</p>');
+    previewEntrance();
+  }
+  function exitEntranceMode() {
+    pickingEntrance = false;
+    entrancePts = [];
+    map.getCanvas().style.cursor = '';
+    previewEntrance();
+  }
+  function previewEntrance() {
+    if (entrancePts.length === 0 && !entranceRoad) {
+      map.getSource('entrance-view')?.setData(emptyFC());
+      return;
+    }
+    const coords = entranceRoad
+      ? entranceRoad.geometry.coordinates
+      : entrancePts;
+    const feat = (coords.length >= 2)
+      ? turf.lineString(coords)
+      : (coords.length === 1 ? turf.point(coords[0]) : null);
+
+    map.getSource('entrance-view')?.setData(feat ? fc([feat]) : emptyFC());
+  }
+  function finalizeEntrance() {
+    if (entrancePts.length < 2) return;
+    // snap the two points as a LineString
+    entranceRoad = turf.lineString([entrancePts[0], entrancePts[1]]);
+    previewEntrance();
+    exitEntranceMode();
+    setStats('<p>Entrance road set. Click <b>Generate Plan</b> to build roads & homes.</p>');
   }
 });
