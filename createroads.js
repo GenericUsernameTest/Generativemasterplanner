@@ -33,7 +33,7 @@ export function createroads(siteBoundary, entranceLine, opts = {}) {
   // --- guard inputs ---
   if (!siteBoundary || !entranceLine) return fc([]);
   if (!validCoords(entranceLine.geometry?.coordinates)) {
-    console.warn('createRoads: entrance line has invalid coordinates — skipping roads.');
+    console.warn('createroads: entrance line has invalid coordinates — skipping roads.');
     return fc([]);
   }
 
@@ -85,7 +85,7 @@ export function createroads(siteBoundary, entranceLine, opts = {}) {
         const bulb = safeIntersectPoly(safeCircle(p2, culdesacRadius), siteBoundary);
         if (bulb) roadPolys.push(bulb);
       } catch (err) {
-        console.warn('createRoads: skipping spur —', err.message);
+        console.warn('createroads: skipping spur —', err.message);
       }
 
       placeAt += spurEvery + rnd(-spurEvery * 0.25, spurEvery * 0.25);
@@ -105,7 +105,7 @@ export function createroads(siteBoundary, entranceLine, opts = {}) {
       if (bulbB) roadPolys.push(bulbB);
     }
   } catch (err) {
-    console.warn('createRoads: main cul‑de‑sacs skipped —', err.message);
+    console.warn('createroads: main cul‑de‑sacs skipped —', err.message);
   }
 
   // ---- 4) Union all pieces ----
