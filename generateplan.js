@@ -101,27 +101,22 @@ export function generatePlan(map, siteBoundary) {
   const placeRot = turf.transformRotate(placementArea, -angleDeg, { pivot });
 
   // ===== 5) Fill **every block** between roads =====
-  // Build block bands from adjacent road centerlines (subtract half road on each side)
-  // If there were no generated centers (tiny sites), seed at least one band so we still place.
   if (yCenters.length === 0) yCenters.push((minY + maxY) / 2);
   if (xCenters.length === 0) xCenters.push((minX + maxX) / 2);
 
-  // Convert half-road to degrees at this latitude
   const halfRoadLat  = (rWidth / 2) * dLat;
   const halfRoadLon  = (rWidth / 2) * dLon;
 
-  // Sort centers to be safe
   yCenters.sort((a,b) => a - b);
   xCenters.sort((a,b) => a - b);
 
-  // Create band edges (min to first center, between centers, last center to max)
   const yBands = [];
   {
     let prevEdge = minY;
     for (let i = 0; i < yCenters.length; i++) {
-      const top = yCenters[i] - halfRoadLat;   // top bound of block below this road
-      if (top > prevEdge) yBands.push([prevEdge, top]); // band until road
-      prevEdge = yCenters[i] + halfRoadLat;    // skip the road thickness
+      const top = yCenters[i] - halfRoadLat;
+      if (top > prevEdge) yBands.push([prevEdge, top]);
+      prevEdge = yCenters[i] + halfRoadLat;
     }
     if (prevEdge < maxY) yBands.push([prevEdge, maxY]);
   }
@@ -147,13 +142,10 @@ export function generatePlan(map, siteBoundary) {
 
   const homes = [];
 
-  // For each block rectangle, clip to placement area and then fill
   for (const [y0, y1] of yBands) {
     for (const [x0, x1] of xBands) {
-      // Skip tiny bands
       if (x1 - x0 <= widthLon || y1 - y0 <= depthLat) continue;
 
-      // Block polygon (in rotated coordinates)
       const block = turf.polygon([[
         [x0, y0],
         [x1, y0],
@@ -162,15 +154,13 @@ export function generatePlan(map, siteBoundary) {
         [x0, y0]
       ]]);
 
-      // Clip to rotated placement area
       const clipped = turf.intersect(block, placeRot);
       if (!clipped) continue;
 
       const [bx0, by0, bx1, by1] = turf.bbox(clipped);
 
-      // A small guard against extreme grids
-      const cols = Math.ceil((bx1 - bx0) / stepLon);
-      const rows = Math.ceil((by1 - by0) / stepLat);
+      const cols  = Math.ceil((bx1 - bx0) / stepLon);
+      const rows  = Math.ceil((by1 - by0) / stepLat);
       const cells = cols * rows;
       const MAX_CELLS = 25000;
       const scale = cells > MAX_CELLS ? Math.sqrt(cells / MAX_CELLS) : 1;
@@ -183,20 +173,37 @@ export function generatePlan(map, siteBoundary) {
           const halfLon = widthLon / 2;
           const halfLat = depthLat / 2;
 
-          // Candidate rect in rotated frame (short edge = X)
-          const rect = turf.polygon([[
-            [cx - halfLon, cy - halfLat],
-            [cx + halfLon, cy - halfLat],
-            [cx + halfLon, cy + halfLat],
-            [cx - halfLon, cy + halfLat],
-            [cx - halfLon, cy - halfLat]
+          // -------- DOUBLE-LAYERED ROWS HERE --------
+          const rowOffsetLat = 0.5 * stepLat * scale; // place one row either side of the band centre
+
+          // Row A (lower)
+          const cyA = cy - rowOffsetLat;
+          const rectA = turf.polygon([[
+            [cx - halfLon, cyA - halfLat],
+            [cx + halfLon, cyA - halfLat],
+            [cx + halfLon, cyA + halfLat],
+            [cx - halfLon, cyA + halfLat],
+            [cx - halfLon, cyA - halfLat]
           ]], { height: 4, color });
 
-          // Require full containment within the clipped block
-          if (!turf.booleanWithin(rect, clipped)) continue;
+          if (turf.booleanWithin(rectA, clipped)) {
+            homes.push(turf.transformRotate(rectA, angleDeg, { pivot }));
+          }
 
-          // Rotate back to map space and keep
-          homes.push(turf.transformRotate(rect, angleDeg, { pivot }));
+          // Row B (upper)
+          const cyB = cy + rowOffsetLat;
+          const rectB = turf.polygon([[
+            [cx - halfLon, cyB - halfLat],
+            [cx + halfLon, cyB - halfLat],
+            [cx + halfLon, cyB + halfLat],
+            [cx - halfLon, cyB + halfLat],
+            [cx - halfLon, cyB - halfLat]
+          ]], { height: 4, color });
+
+          if (turf.booleanWithin(rectB, clipped)) {
+            homes.push(turf.transformRotate(rectB, angleDeg, { pivot }));
+          }
+          // ------------------------------------------
         }
       }
     }
