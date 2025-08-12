@@ -1,117 +1,194 @@
-// createroads.js
-// Builds a simple, meter-accurate road network aligned to the entrance road.
-// Returns a FeatureCollection of POLYGONS (buffered roads) ready for a fill layer.
+// createroads.js  — organic roads from a user-picked entrance
+// Exports: createRoads(siteBoundary: Feature<Polygon|MultiPolygon>, entranceLine: Feature<LineString>, options?)
 
-export function createroads(site, entranceLine, opts = {}) {
-  const {
-    mainRoadWidth  = 8,   // m
-    localRoadWidth = 5,   // m
-    blockDepth     = 30,  // m (one row depth + front)
-    blockWidth     = 30,  // m (lots across + side gaps)
-    addBulbs       = true // cul-de-sac bulbs at ends
-  } = opts;
+export function createRoads(siteBoundary, entranceLine, opts = {}) {
+  // ------- Options (meters) -------
+  const mainRoadWidth   = clamp(opts.mainRoadWidth,   6, 14)   ?? 8;  // primary carriageway
+  const localRoadWidth  = clamp(opts.localRoadWidth,  4, 10)   ?? 5;  // spurs
+  const spurEvery       = clamp(opts.spurEvery,       60, 220) ?? 120; // spacing along main
+  const spurLen         = clamp(opts.spurLength,      40, 220) ?? 120; // base length of spur
+  const spurJitter      = clamp(opts.spurJitter,       0, 40)  ?? 15;  // randomness (m)
+  const bendFactor      = clamp(opts.bendFactor,       0, 0.9) ?? 0.35;// 0 straight … 0.9 curvy
+  const culdesacRadius  = clamp(opts.culdesacRadius,   6, 20)  ?? 12;  // bulb radius
+  const alternateSides  = opts.alternateSides ?? true; // build left/right alternation
 
-  // ---------- helpers (local so this file is standalone) ----------
-  const fc = (features) => ({ type: 'FeatureCollection', features });
-  function unionAll(features) {
-    if (!features?.length) return null;
-    let u = features[0];
-    for (let i = 1; i < features.length; i++) {
-      try { u = turf.union(u, features[i]); } catch {}
-    }
-    return u;
-  }
-  function metersToDeg(latDeg){
-    const latR = latDeg * Math.PI / 180;
-    const dLat = 1 / 110540;
-    const dLon = 1 / (111320 * Math.max(0.0001, Math.cos(latR)));
-    return { dLat, dLon };
-  }
-  function safeIntersect(a, b){
-    try { return turf.intersect(a, b) || null; } catch { return null; }
-  }
-  // ----------------------------------------------------------------
+  // Helpers
+  const fc  = (features) => ({ type: 'FeatureCollection', features });
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function clamp(n, a, b) { return Math.min(Math.max(n, a), b); }
 
-  // Guard
-  if (!site || site.type !== 'Feature' || site.geometry?.type !== 'Polygon') {
-    return fc([]);
-  }
-  if (!entranceLine || entranceLine.geometry?.type !== 'LineString') {
-    return fc([]);
-  }
+  // Safety guards
+  if (!siteBoundary || !entranceLine) return fc([]);
 
-  // Compute entrance bearing
-  const coords = entranceLine.geometry.coordinates;
-  const pStart = turf.point(coords[0]);
-  const pEnd   = turf.point(coords[coords.length - 1]);
-  let angle = turf.bearing(pStart, pEnd);
+  // ---- 1) Smooth the entrance as our MAIN road ----
+  // If entrance is 2 points only, bezier works fine; for longer lines, still OK.
+  let mainLine = tryBezier(entranceLine, 0.2);
+  // Clip the visible main line inside the site to avoid huge buffers poking out
+  const mainInside = safeIntersectLineWithPoly(mainLine, siteBoundary) || mainLine;
 
-  // Pivot around site center and rotate site so entrance is (roughly) horizontal
-  const pivot = turf.center(site).geometry.coordinates;
-  const siteRot = turf.transformRotate(site, -angle, { pivot });
+  // Buffer to polygon (width is *full* width; buffer takes radius, so width/2)
+  const mainPoly = safeIntersectPoly(
+    turf.buffer(mainInside, mainRoadWidth / 2, { units: 'meters' }),
+    siteBoundary
+  );
 
-  // Buffer the entrance to a polygon and clip to site (in original frame)
-  const entrancePolyRaw = turf.buffer(entranceLine, mainRoadWidth / 2, { units: 'meters' });
-  const entrancePoly    = safeIntersect(entrancePolyRaw, site) ?? turf.buffer(entranceLine, mainRoadWidth / 2, { units: 'meters' });
+  const roadPolys = [];
+  if (mainPoly) roadPolys.push(mainPoly);
 
-  // Work in rotated space for grid
-  const lat = turf.center(site).geometry.coordinates[1];
-  const { dLat, dLon } = metersToDeg(lat);
+  // ---- 2) Place curved SPURS along the main road ----
+  const mainLen = turf.length(mainLine, { units: 'meters' });
+  if (mainLen > 10) {
+    // Start placing after a small offset so spurs don't crowd the edge
+    let placeAt = Math.max(40, spurEvery * 0.5);
+    let leftSide = true; // for alternation
 
-  // Grid pitches (in meters)
-  const pitchY = 2 * blockDepth + localRoadWidth; // horizontal roads every two rows + road width
-  const pitchX = blockWidth + localRoadWidth;     // vertical roads between blocks + road width
+    while (placeAt < mainLen - 40) {
+      const basePoint   = turf.along(mainLine, placeAt / 1000, { units: 'kilometers' });
+      const bearingHere = tangentBearing(mainLine, placeAt);
+      if (Number.isFinite(bearingHere)) {
+        // normal bearings
+        const normal = leftSide ? bearingHere + 90 : bearingHere - 90;
 
-  // Convert to deg (only to set sampling frequency; we still buffer in meters)
-  const stepY = Math.max(1e-9, pitchY * dLat);
-  const stepX = Math.max(1e-9, pitchX * dLon);
+        // jittered length & slight skew angle
+        const thisLen   = spurLen + rnd(-spurJitter, spurJitter);
+        const skew      = rnd(-10, 10) * bendFactor; // degrees
+        const ctrlDist  = thisLen * (0.45 + 0.2 * bendFactor); // where control point sits
+        const endDist   = thisLen;
 
-  const [minX, minY, maxX, maxY] = turf.bbox(siteRot);
-  const roadPolysRot = [];
+        const p0 = basePoint.geometry.coordinates;
+        const p1 = turf.destination(basePoint, ctrlDist, normal + skew, { units: 'meters' }).geometry.coordinates;
+        const p2 = turf.destination(basePoint, endDist,  normal,        { units: 'meters' }).geometry.coordinates;
 
-  // Horizontal locals (constant y), buffer then clip to rotated site
-  for (let y = minY; y <= maxY; y += stepY) {
-    const seg = turf.lineString([[minX - 1, y], [maxX + 1, y]]);
-    const buf = turf.buffer(seg, localRoadWidth / 2, { units: 'meters' });
-    const clip = safeIntersect(buf, siteRot);
-    if (clip) roadPolysRot.push(clip);
-  }
+        // A small 3-point curve (quadratic-ish) -> approximate with bezierSpline
+        const spurRough = turf.lineString([p0, p1, p2]);
+        const spurCurvy = tryBezier(spurRough, 0.4);
 
-  // Vertical locals (constant x)
-  const verticalEnds = []; // for bulbs
-  for (let x = minX; x <= maxX; x += stepX) {
-    const seg = turf.lineString([[x, minY - 1], [x, maxY + 1]]);
-    const buf = turf.buffer(seg, localRoadWidth / 2, { units: 'meters' });
-    const clip = safeIntersect(buf, siteRot);
-    if (clip) {
-      roadPolysRot.push(clip);
+        // Buffer to road polygon and clip to site
+        const spurPoly = safeIntersectPoly(
+          turf.buffer(spurCurvy, localRoadWidth / 2, { units: 'meters' }),
+          siteBoundary
+        );
+        if (spurPoly) {
+          roadPolys.push(spurPoly);
 
-      // crude endpoints for bulbs (just band edges)
-      verticalEnds.push([x, minY + localRoadWidth * dLat * 0.5]);
-      verticalEnds.push([x, maxY - localRoadWidth * dLat * 0.5]);
+          // Cul‑de‑sac at spur end (little bulb)
+          const endPoint = turf.point(p2);
+          const bulb = safeIntersectPoly(
+            turf.circle(endPoint, culdesacRadius, { steps: 32, units: 'meters' }),
+            siteBoundary
+          );
+          if (bulb) roadPolys.push(bulb);
+        }
+      }
+
+      // Next placement
+      placeAt += spurEvery + rnd(-spurEvery * 0.25, spurEvery * 0.25);
+      if (alternateSides) leftSide = !leftSide;
     }
   }
 
-  // Add cul‑de‑sac bulbs at vertical dead-ends near the site edge
-  if (addBulbs && verticalEnds.length) {
-    verticalEnds.forEach(c => {
-      const bulb = turf.circle(c, Math.max(4, localRoadWidth * 0.9), { steps: 32, units: 'meters' });
-      const clip = safeIntersect(bulb, siteRot);
-      if (clip) roadPolysRot.push(clip);
-    });
+  // ---- 3) Cul‑de‑sacs on the MAIN line ends (optional) ----
+  const first = turf.point(mainLine.geometry.coordinates[0]);
+  const last  = turf.point(mainLine.geometry.coordinates[mainLine.geometry.coordinates.length - 1]);
+  const bulbA = safeIntersectPoly(turf.circle(first, culdesacRadius, { steps: 32, units: 'meters' }), siteBoundary);
+  const bulbB = safeIntersectPoly(turf.circle(last,  culdesacRadius, { steps: 32, units: 'meters' }), siteBoundary);
+  if (bulbA) roadPolys.push(bulbA);
+  if (bulbB) roadPolys.push(bulbB);
+
+  // ---- 4) Union all pieces into a single roads polygon (or a few) ----
+  const unioned = unionMany(roadPolys);
+  if (!unioned) return fc([]);
+
+  // Ensure FeatureCollection of polygons (Mapbox fill layer-friendly)
+  return fc(splitMulti(unioned));
+
+  // ================= helpers =================
+  function tryBezier(line, sharpness = 0.2) {
+    try {
+      // turf.bezierSpline uses resolution/ sharpness; keep resolution modest to stay light
+      return turf.bezierSpline(line, { sharpness, resolution: 10000 });
+    } catch {
+      return line;
+    }
   }
 
-  // Rotate the rotated roads back to original frame
-  const roadsBack = roadPolysRot.map(p => turf.transformRotate(p, angle, { pivot }));
-
-  // Include entrance (already in original frame) as polygon
-  if (entrancePoly) roadsBack.push(entrancePoly);
-
-  // Union them for a tidy single multipolygon
-  let unioned = roadsBack.length ? roadsBack[0] : null;
-  for (let i = 1; i < roadsBack.length; i++) {
-    try { unioned = turf.union(unioned, roadsBack[i]); } catch {}
+  // Bearing at distance s along a line by sampling a tiny delta segment
+  function tangentBearing(line, sMeters) {
+    const total = turf.length(line, { units: 'meters' });
+    const s0 = Math.max(0, sMeters - 0.5);
+    const s1 = Math.min(total, sMeters + 0.5);
+    const p0 = turf.along(line, s0 / 1000, { units: 'kilometers' });
+    const p1 = turf.along(line, s1 / 1000, { units: 'kilometers' });
+    return turf.bearing(p0, p1);
   }
 
-  return unioned ? fc([unioned]) : fc([]);
+  // Safely intersect polygon with site polygon/multipolygon
+  function safeIntersectPoly(polyA, polyB) {
+    try {
+      const inter = turf.intersect(polyA, polyB);
+      return inter || null;
+    } catch { return null; }
+  }
+
+  // Clip a line inside a polygon (returns the portion inside or original if failure)
+  function safeIntersectLineWithPoly(line, poly) {
+    try {
+      const clipped = turf.lineSplit(line, poly); // lineSplit by polygon boundary; then keep parts inside
+      if (!clipped || !clipped.features?.length) return null;
+      const inside = clipped.features.filter(seg => {
+        const mid = turf.along(seg, turf.length(seg, { units: 'kilometers' }) / 2, { units: 'kilometers' });
+        return turf.booleanPointInPolygon(mid, poly);
+      });
+      if (!inside.length) return null;
+      // Stitch back
+      let coords = [inside[0].geometry.coordinates[0]];
+      inside.forEach(seg => {
+        const cs = seg.geometry.coordinates;
+        // avoid duplicating joint points
+        for (let i = 1; i < cs.length; i++) coords.push(cs[i]);
+      });
+      return turf.lineString(coords);
+    } catch { return null; }
+  }
+
+  // Union array of polygons robustly
+  function unionMany(polys) {
+    if (!polys.length) return null;
+    let out = polys[0];
+    for (let i = 1; i < polys.length; i++) {
+      try {
+        out = turf.union(out, polys[i]) || out;
+      } catch {
+        // if union fails on a piece, keep both by merging later
+        out = turf.featureCollection(splitMulti(out).concat(splitMulti(polys[i])));
+        out = dissolveFC(out);
+      }
+    }
+    return out;
+  }
+
+  // Dissolve a FeatureCollection of polygons into as few polygons as possible
+  function dissolveFC(fcIn) {
+    const feats = fcIn.features || [];
+    if (!feats.length) return null;
+    let acc = feats[0];
+    for (let i = 1; i < feats.length; i++) {
+      try { acc = turf.union(acc, feats[i]) || acc; } catch { /* ignore */ }
+    }
+    return acc;
+  }
+
+  // Split MultiPolygon to array of Polygon features
+  function splitMulti(feat) {
+    if (!feat) return [];
+    const g = feat.geometry;
+    if (!g) return [];
+    if (g.type === 'Polygon') return [feat];
+    if (g.type === 'MultiPolygon') {
+      return g.coordinates.map(coords => turf.polygon(coords));
+    }
+    // if FC slipped through
+    if (feat.type === 'FeatureCollection') return feat.features;
+    return [];
+  }
 }
