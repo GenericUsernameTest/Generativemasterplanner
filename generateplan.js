@@ -165,47 +165,35 @@ export function generatePlan(map, siteBoundary) {
       const MAX_CELLS = 25000;
       const scale = cells > MAX_CELLS ? Math.sqrt(cells / MAX_CELLS) : 1;
 
+      // --- two fixed rows per band (edge‑anchored) ---
+      const frontLat = front * dLatP;
+      const rowInset = frontLat / 2 + depthLat / 2;      // keep inside by (front/2 + half‑depth)
+      const rowCY_A  = by0 + rowInset;                   // bottom row center
+      const rowCY_B  = by1 - rowInset;                   // top row center
+      const placeTwo = (rowCY_B - rowCY_A) >= depthLat;  // enough space for two rows?
+
       for (let x = bx0; x <= bx1; x += stepLon * scale) {
-        for (let y = by0; y <= by1; y += stepLat * scale) {
-          const cx = x + (stepLon * scale) / 2;
-          const cy = y + (stepLat * scale) / 2;
+        const cx = x + (stepLon * scale) / 2;
+        const halfLon = widthLon / 2;
+        const halfLat = depthLat / 2;
 
-          const halfLon = widthLon / 2;
-          const halfLat = depthLat / 2;
+        const targets = placeTwo ? [rowCY_A, rowCY_B] : [ (by0 + by1) / 2 ];
 
-          // -------- DOUBLE-LAYERED ROWS HERE --------
-          const rowOffsetLat = 0.5 * stepLat * scale; // place one row either side of the band centre
-
-          // Row A (lower)
-          const cyA = cy - rowOffsetLat;
-          const rectA = turf.polygon([[
-            [cx - halfLon, cyA - halfLat],
-            [cx + halfLon, cyA - halfLat],
-            [cx + halfLon, cyA + halfLat],
-            [cx - halfLon, cyA + halfLat],
-            [cx - halfLon, cyA - halfLat]
+        for (const cy of targets) {
+          const rect = turf.polygon([[
+            [cx - halfLon, cy - halfLat],
+            [cx + halfLon, cy - halfLat],
+            [cx + halfLon, cy + halfLat],
+            [cx - halfLon, cy + halfLat],
+            [cx - halfLon, cy - halfLat]
           ]], { height: 4, color });
 
-          if (turf.booleanWithin(rectA, clipped)) {
-            homes.push(turf.transformRotate(rectA, angleDeg, { pivot }));
+          if (turf.booleanWithin(rect, clipped)) {
+            homes.push(turf.transformRotate(rect, angleDeg, { pivot }));
           }
-
-          // Row B (upper)
-          const cyB = cy + rowOffsetLat;
-          const rectB = turf.polygon([[
-            [cx - halfLon, cyB - halfLat],
-            [cx + halfLon, cyB - halfLat],
-            [cx + halfLon, cyB + halfLat],
-            [cx - halfLon, cyB + halfLat],
-            [cx - halfLon, cyB - halfLat]
-          ]], { height: 4, color });
-
-          if (turf.booleanWithin(rectB, clipped)) {
-            homes.push(turf.transformRotate(rectB, angleDeg, { pivot }));
-          }
-          // ------------------------------------------
         }
       }
+      // -----------------------------------------------
     }
   }
 
