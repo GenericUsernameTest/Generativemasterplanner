@@ -11,8 +11,8 @@ export function generatePlan(map, siteBoundary) {
   if (houseType === 't2') { homeW = 5;  homeD = 8;  color = '#99ff99'; } // 5x8
   if (houseType === 't3') { homeW = 10; homeD = 8;  color = '#9999ff'; } // 10x8
 
-  const front = parseFloat($('frontSetback').value) || 5; // front/back gap (row spacing)
-  const side  = parseFloat($('sideGap').value)       || 2; // left/right gap
+  const front  = parseFloat($('frontSetback').value) || 5; // front/back gap (row spacing)
+  const side   = parseFloat($('sideGap').value)       || 2; // left/right gap
   const rWidth = 5; // fixed road width (m)
 
   const rawAngle = parseFloat($('rotationAngle').value);
@@ -147,11 +147,7 @@ export function generatePlan(map, siteBoundary) {
       if (x1 - x0 <= widthLon || y1 - y0 <= depthLat) continue;
 
       const block = turf.polygon([[
-        [x0, y0],
-        [x1, y0],
-        [x1, y1],
-        [x0, y1],
-        [x0, y0]
+        [x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]
       ]]);
 
       const clipped = turf.intersect(block, placeRot);
@@ -167,10 +163,10 @@ export function generatePlan(map, siteBoundary) {
 
       // --- two fixed rows per band (edge‑anchored) ---
       const frontLat = front * dLatP;
-      const rowInset = frontLat / 2 + depthLat / 2;      // keep inside by (front/2 + half‑depth)
-      const rowCY_A  = by0 + rowInset;                   // bottom row center
-      const rowCY_B  = by1 - rowInset;                   // top row center
-      const placeTwo = (rowCY_B - rowCY_A) >= depthLat;  // enough space for two rows?
+      const rowInset = frontLat / 2 + depthLat / 2;     // (front/2 + half‑depth)
+      const rowCY_A  = by0 + rowInset;                  // bottom row center (near lower road)
+      const rowCY_B  = by1 - rowInset;                  // top row center (near upper road)
+      const placeTwo = (rowCY_B - rowCY_A) >= depthLat; // enough space for two rows?
 
       for (let x = bx0; x <= bx1; x += stepLon * scale) {
         const cx = x + (stepLon * scale) / 2;
