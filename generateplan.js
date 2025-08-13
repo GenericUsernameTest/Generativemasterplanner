@@ -310,3 +310,69 @@ function nearestEdgeBearing(sitePoly, pointFeature) {
 
   return bestBearing;
 }
+
+// ---- helpers required by Step 3 ----
+function wrapDeg(a){ return ((a + 180) % 360 + 360) % 360 - 180; }
+function angDiff(a,b){ return Math.abs(wrapDeg(a - b)); }
+
+/**
+ * Return bearings that are normals to boundary segments near `junctionPoint`
+ * whose segment direction is ~perpendicular to the access bearing.
+ */
+function perpBoundaryNormals(sitePoly, junctionPoint, accessBearing, opts = {}) {
+  const R       = opts.searchRadiusM ?? 100;   // meters
+  const tolDeg  = opts.perpToleranceDeg ?? 20; // accept ~perpendicular segments
+  const dedupe  = opts.dedupeDeg ?? 8;         // collapse near-duplicates
+
+  const segs = collectBoundarySegmentsNear(sitePoly, junctionPoint, R);
+
+  const target1 = wrapDeg(accessBearing + 90);
+  const target2 = wrapDeg(accessBearing - 90);
+
+  let normals = [];
+  for (const seg of segs) {
+    const b = seg.bearing;
+    const d = Math.min(angDiff(b, target1), angDiff(b, target2));
+    if (d <= tolDeg) {
+      normals.push(wrapDeg(b + 90), wrapDeg(b - 90));
+    }
+  }
+
+  normals.sort((a,b)=>a-b);
+  const out = [];
+  for (const n of normals) {
+    if (!out.length || angDiff(n, out[out.length-1]) > dedupe) out.push(n);
+  }
+  return out;
+}
+
+/**
+ * Collect boundary segments within `radiusM` of a point.
+ * Each item: { a:[x,y], b:[x,y], bearing:Number }
+ */
+function collectBoundarySegmentsNear(sitePoly, pointFeature, radiusM) {
+  const segs = [];
+
+  const visitRing = (coords) => {
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = coords[i], b = coords[i+1];
+      const mid = turf.midpoint(turf.point(a), turf.point(b));
+      const dm  = turf.distance(mid, pointFeature, { units: 'meters' });
+      if (dm > radiusM) continue;
+
+      segs.push({
+        a, b,
+        bearing: turf.bearing(turf.point(a), turf.point(b))
+      });
+    }
+  };
+
+  const g = sitePoly.geometry;
+  if (g.type === 'Polygon') {
+    visitRing(g.coordinates[0]);            // outer ring
+  } else if (g.type === 'MultiPolygon') {
+    for (const poly of g.coordinates) visitRing(poly[0]);
+  }
+
+  return segs;
+}
