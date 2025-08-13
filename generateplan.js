@@ -7,7 +7,7 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   // ===== 1) Inputs =====
   const houseType = $('houseType').value;
   let homeW, homeD, color;
-  if (houseType === 't1') { homeW = 5;  homeD = 5;  color = '#9fb7ff'; } // soft blue (clearer in 3D)
+  if (houseType === 't1') { homeW = 5;  homeD = 5;  color = '#9fb7ff'; }
   if (houseType === 't2') { homeW = 5;  homeD = 8;  color = '#9fb7ff'; }
   if (houseType === 't3') { homeW = 10; homeD = 8;  color = '#9fb7ff'; }
 
@@ -18,59 +18,51 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   const angleDeg = Number.isFinite(rawAngle) ? rawAngle : getLongestEdgeAngle(siteBoundary);
 
   // Road widths (meters)
-  const accessW = 8;   // access road carriageway
-  const spineW  = 6;   // narrower spine
-  const edgeClear = 8; // keep both roads back from site edge (m)
+  const accessW   = 8;  // access road carriageway
+  const spineW    = 6;  // narrower spine
+  const edgeClear = 8;  // keep roads back from site edge (m)
 
-  // ===== 2) Make the ACCESS road polygon (flat end) =====
+  // ===== 2) Find ACCESS line segment inside the site (no buffering yet) =====
   let accessInside = accessRoad && clipLineInside(accessRoad, siteBoundary);
-  if (!accessInside && accessRoad) accessInside = accessRoad; // fall back
-
+  if (!accessInside && accessRoad) accessInside = accessRoad; // fallback
   let accessPoly = null;
+
+  // ===== 3) Build a perpendicular SPINE through the interior end of the access =====
+  let spineLine = null;
   if (isLine(accessInside)) {
-    // Buffer with FLAT cap so it “meets” the spine neatly
-    accessPoly = safeIntersectPoly(
-      turf.buffer(accessInside, accessW / 2, { units: 'meters', endCapStyle: 'flat' }),
-      siteBoundary
-    );
-  }
+    // Junction point at the *interior* end of the access
+    const j = pickInteriorEndpoint(accessInside, siteBoundary);
+    const tBear = tangentBearing(accessInside, j); // local tangent (deg)
+    if (Number.isFinite(tBear)) {
+      const nBear = normBearing(tBear); // perpendicular (deg)
 
-// ===== 3) Build a perpendicular SPINE through the interior end of the access =====
-let spineLine = null;
-if (isLine(accessInside)) {
-  // Junction point at the *interior* end of the access
-  const j = pickInteriorEndpoint(accessInside, siteBoundary);
-  const tBear = tangentBearing(accessInside, j); // local tangent (deg)
-  if (Number.isFinite(tBear)) {
-    const nBear = normBearing(tBear); // perpendicular (deg)
+      // Long normal line through the junction (both directions) so we can clip to site
+      const L = 2000; // m
+      const pL = turf.destination(j,  L, nBear, { units: 'meters' });
+      const pR = turf.destination(j, -L, nBear, { units: 'meters' });
+      const longSpine = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
 
-    // Make a long normal line through the junction (both directions)
-    const L = 2000; // m
-    const pL = turf.destination(j,  L, nBear, { units: 'meters' });
-    const pR = turf.destination(j, -L, nBear, { units: 'meters' });
-    const longSpine = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
+      // Clip to site & pull back from edges so it doesn't hit the boundary
+      const insideSeg = lineClipToPoly(longSpine, siteBoundary);
+      if (isLine(insideSeg)) spineLine = trimLineEnds(insideSeg, edgeClear);
 
-    // Clip to site & pull back from edges so it doesn't hit the boundary
-    const insideSeg = lineClipToPoly(longSpine, siteBoundary);
-    if (isLine(insideSeg)) {
-      spineLine = trimLineEnds(insideSeg, edgeClear); // keep inboard a bit
+      // Nudge the ACCESS line slightly *into* the spine so the access round cap is hidden
+      const extraInto = Math.max(accessW, spineW) * 0.6; // push in ~ half a carriageway
+      accessInside = extendLinePastPoint(accessInside, j, extraInto);
+
+      // NOW buffer access (default rounded caps) — the spine will overlap the end
+      accessPoly = safeIntersectPoly(
+        turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
+        siteBoundary
+      );
     }
-
-    // Push the access line slightly *into* the spine so the round cap is hidden
-    accessInside = extendLinePastPoint(accessInside, j, 1.0); // 1 m into spine
-
-    // Buffer access with default round cap (now overlapped by the spine)
-    accessPoly = safeIntersectPoly(
-      turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
-      siteBoundary
-    );
   }
-}
+
   // ===== 4) Buffer the SPINE with a ROUND cap =====
   let spinePoly = null;
   if (isLine(spineLine)) {
     spinePoly = safeIntersectPoly(
-      turf.buffer(spineLine, spineW / 2, { units: 'meters', endCapStyle: 'round' }),
+      turf.buffer(spineLine, spineW / 2, { units: 'meters' }), // round caps by default
       siteBoundary
     );
   }
@@ -87,7 +79,7 @@ if (isLine(accessInside)) {
   }
   map.getSource('roads-view')?.setData(roadsFC);
 
-  // ===== 6) Build a no‑build mask (roads + safety buffer) =====
+  // ===== 6) Build a no‑build mask (roads + tiny safety buffer) =====
   let noBuild = null;
   if (roadsFC.features.length) {
     try {
@@ -104,8 +96,7 @@ if (isLine(accessInside)) {
     const stepM    = Math.max(1, lotPitch);
 
     const Lm = turf.length(spineLine, { units: 'meters' });
-    // Start/stop a little in from the ends for nicer caps
-    const start = 0.5 * lotPitch;
+    const start = 0.5 * lotPitch;              // a little in from ends
     const stop  = Math.max(0, Lm - 0.5 * lotPitch);
 
     for (let s = start; s <= stop; s += stepM) {
@@ -115,14 +106,9 @@ if (isLine(accessInside)) {
 
       for (const sideSign of [-1, +1]) {
         const center = turf.destination(base, offDist * sideSign, normBearing(bear), { units: 'meters' });
-
-        // Build an oriented rectangle at 'center' with orientation 'bear'
         const rect = orientedRect(center, bear, homeW, homeD, color);
-
-        // Keep inside site, and NOT overlapping roads/no‑build
         if (!turf.booleanWithin(rect, siteBoundary)) continue;
         if (noBuild && turf.booleanIntersects(rect, noBuild)) continue;
-
         homes.push(rect);
       }
     }
@@ -233,9 +219,8 @@ function trimLineEnds(line, trimM) {
   return turf.lineString([p0.geometry.coordinates, p1.geometry.coordinates]);
 }
 
-// Shorten a line so its end finishes shy of a point by 'gapM' (used to meet spine centerline cleanly)
-function shortenLineToPoint(line, point, gapM) {
-  const snapped = turf.nearestPointOnLine(line, point);
+// Extend a line so its end passes a given point by 'extraM'
+function extendLinePastPoint(line, point, extraM) {
   const cs = line.geometry.coordinates.slice();
   const endA = turf.point(cs[0]);
   const endB = turf.point(cs[cs.length - 1]);
@@ -243,13 +228,15 @@ function shortenLineToPoint(line, point, gapM) {
   const dB = turf.distance(endB, point, { units: 'meters' });
 
   if (dA < dB) {
+    // Extend A end toward the point and past it by extraM
     const dir = turf.bearing(endA, turf.point(cs[1]));
-    const newA = turf.destination(point, gapM, dir + 180, { units: 'meters' }).geometry.coordinates;
+    const newA = turf.destination(point, extraM, dir - 180, { units: 'meters' }).geometry.coordinates;
     cs[0] = newA;
   } else {
+    // Extend B end toward the point and past it by extraM
     const n = cs.length - 1;
     const dir = turf.bearing(turf.point(cs[n - 1]), endB);
-    const newB = turf.destination(point, gapM, dir, { units: 'meters' }).geometry.coordinates;
+    const newB = turf.destination(point, extraM, dir, { units: 'meters' }).geometry.coordinates;
     cs[n] = newB;
   }
   return turf.lineString(cs);
@@ -273,27 +260,4 @@ function orientedRect(center, bearingDeg, widthM, depthM, color) {
   ]], { height: 4, color });
 
   return turf.transformRotate(rect, bearingDeg, { pivot: [cx, cy] });
-}
-
-// Extend a line so its end passes a given point by 'extraM'
-function extendLinePastPoint(line, point, extraM) {
-  const cs = line.geometry.coordinates.slice();
-  const endA = turf.point(cs[0]);
-  const endB = turf.point(cs[cs.length - 1]);
-  const dA = turf.distance(endA, point, { units: 'meters' });
-  const dB = turf.distance(endB, point, { units: 'meters' });
-
-  if (dA < dB) {
-    // Extend A end toward the point and  past it by extraM
-    const dir = turf.bearing(endA, turf.point(cs[1]));
-    const newA = turf.destination(point, extraM, dir - 180, { units: 'meters' }).geometry.coordinates;
-    cs[0] = newA;
-  } else {
-    // Extend B end toward the point and past it by extraM
-    const n = cs.length - 1;
-    const dir = turf.bearing(turf.point(cs[n - 1]), endB);
-    const newB = turf.destination(point, extraM, dir, { units: 'meters' }).geometry.coordinates;
-    cs[n] = newB;
-  }
-  return turf.lineString(cs);
 }
