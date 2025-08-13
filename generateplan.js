@@ -35,34 +35,51 @@ export function generatePlan(map, siteBoundary, accessRoad) {
     );
   }
 
-  // ===== 3) Build a perpendicular SPINE through the interior end of the access =====
-  let spineLine = null;
-  if (isLine(accessInside)) {
-    const j = pickInteriorEndpoint(accessInside, siteBoundary); // junction point (Feature<Point>)
-    const tBear = tangentBearing(accessInside, j);              // local access tangent (deg)
-    if (Number.isFinite(tBear)) {
-      const nBear = normBearing(tBear);                         // perpendicular (deg)
+ // ===== 3) Build a perpendicular SPINE through the interior end of the access =====
+let spineLine = null;
+if (isLine(accessInside)) {
+  const j = pickInteriorEndpoint(accessInside, siteBoundary); // junction point (Feature<Point>)
+  const tBear = tangentBearing(accessInside, j);              // local access tangent (deg)
+  if (Number.isFinite(tBear)) {
+    const nBear = normBearing(tBear);                         // perpendicular (deg)
 
-      // Make a long line through the junction in both +/- normal directions
-      const L = 2000; // long enough to cross any normal-sized site (m)
-      const pL = turf.destination(j,  L, nBear, { units: 'meters' });
-      const pR = turf.destination(j, -L, nBear, { units: 'meters' });
-      const longSpine = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
+    // Make a long line through the junction in both +/- normal directions
+    const L = 2000; // long enough to cross any normal-sized site (m)
+    const pL = turf.destination(j,  L, nBear, { units: 'meters' });
+    const pR = turf.destination(j, -L, nBear, { units: 'meters' });
+    const longSpine = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
 
-      // Clip to site & pull back from edges
-      const insideSeg = lineClipToPoly(longSpine, siteBoundary);
-      if (isLine(insideSeg)) {
-        spineLine = trimLineEnds(insideSeg, edgeClear); // keep inboard a bit
-      }
-
-      // Nudge the ACCESS line to end exactly at the spine centerline (flat meeting point)
-      accessInside = shortenLineToPoint(accessInside, j, 0.5); // 0.5 m shy of the junction
-      accessPoly = safeIntersectPoly(
-        turf.buffer(accessInside, accessW / 2, { units: 'meters', endCapStyle: 'flat' }),
-        siteBoundary
-      );
+    // Clip to site & pull back from edges
+    const insideSeg = lineClipToPoly(longSpine, siteBoundary);
+    if (isLine(insideSeg)) {
+      spineLine = trimLineEnds(insideSeg, edgeClear); // keep inboard a bit
     }
+
+    // Force the ACCESS line to end exactly at the spine centerline
+    accessInside = shortenLineToPoint(accessInside, j, 0.5); // 0.5 m shy of junction
+
+    // Buffer it, then cut the polygon flat at the junction
+    let rawAccessPoly = turf.buffer(accessInside, accessW / 2, { units: 'meters', endCapStyle: 'butt' });
+
+    // Build a perpendicular clipping box at the junction
+    const clipW = accessW * 2; // width of cut box
+    const clipL = 0.5;         // small overlap length in meters
+    const clipBearing = nBear; // perpendicular to road
+    const c1 = turf.destination(j,  clipL, clipBearing, { units: 'meters' });
+    const c2 = turf.destination(j, -clipL, clipBearing, { units: 'meters' });
+    const clipBox = turf.polygon([[
+      turf.destination(c1,  clipW/2, tBear+90, { units: 'meters' }).geometry.coordinates,
+      turf.destination(c1, -clipW/2, tBear+90, { units: 'meters' }).geometry.coordinates,
+      turf.destination(c2, -clipW/2, tBear+90, { units: 'meters' }).geometry.coordinates,
+      turf.destination(c2,  clipW/2, tBear+90, { units: 'meters' }).geometry.coordinates,
+      turf.destination(c1,  clipW/2, tBear+90, { units: 'meters' }).geometry.coordinates
+    ]]);
+
+    // Intersect to guarantee flat cut
+    rawAccessPoly = turf.difference(rawAccessPoly, clipBox) || rawAccessPoly;
+    accessPoly = safeIntersectPoly(rawAccessPoly, siteBoundary);
   }
+}
 
   // ===== 4) Buffer the SPINE with a ROUND cap =====
   let spinePoly = null;
