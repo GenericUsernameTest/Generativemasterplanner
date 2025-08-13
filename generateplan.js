@@ -274,3 +274,26 @@ function orientedRect(center, bearingDeg, widthM, depthM, color) {
 
   return turf.transformRotate(rect, bearingDeg, { pivot: [cx, cy] });
 }
+
+// Extend a line so its end passes a given point by 'extraM'
+function extendLinePastPoint(line, point, extraM) {
+  const cs = line.geometry.coordinates.slice();
+  const endA = turf.point(cs[0]);
+  const endB = turf.point(cs[cs.length - 1]);
+  const dA = turf.distance(endA, point, { units: 'meters' });
+  const dB = turf.distance(endB, point, { units: 'meters' });
+
+  if (dA < dB) {
+    // Extend A end toward the point and  past it by extraM
+    const dir = turf.bearing(endA, turf.point(cs[1]));
+    const newA = turf.destination(point, extraM, dir - 180, { units: 'meters' }).geometry.coordinates;
+    cs[0] = newA;
+  } else {
+    // Extend B end toward the point and past it by extraM
+    const n = cs.length - 1;
+    const dir = turf.bearing(turf.point(cs[n - 1]), endB);
+    const newB = turf.destination(point, extraM, dir, { units: 'meters' }).geometry.coordinates;
+    cs[n] = newB;
+  }
+  return turf.lineString(cs);
+}
