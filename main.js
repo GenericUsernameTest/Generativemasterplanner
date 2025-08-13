@@ -2,7 +2,8 @@
 import { $, emptyFC, fc, setStats, getLongestEdgeAngle } from './utils.js';
 import { generatePlan } from './generateplan.js';
 
-mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
+mapboxgl.accessToken =
+  'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,8 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
     style: STYLE_URL,
     center: savedView.center || [0, 20],
     zoom: typeof savedView.zoom === 'number' ? savedView.zoom : 2,
-    pitch: savedView.pitch || 0,
-    bearing: savedView.bearing || 0
+    pitch: typeof savedView.pitch === 'number' ? savedView.pitch : 0,
+    bearing: typeof savedView.bearing === 'number' ? savedView.bearing : 0
   });
 
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
@@ -29,16 +30,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------- state ----------
   let draw;
-  let siteBoundary = null;     // Feature<Polygon|MultiPolygon>
-  let entranceRoad = null;     // Feature<LineString>
+  let siteBoundary = null;   // Feature<Polygon|MultiPolygon>
+  let entranceRoad = null;   // Feature<LineString>
 
   map.on('load', () => {
-    // Sources & layers
+    // Sources
     map.addSource('site-view',   { type: 'geojson', data: emptyFC() });
     map.addSource('roads-view',  { type: 'geojson', data: emptyFC() });
     map.addSource('homes',       { type: 'geojson', data: emptyFC() });
     map.addSource('access-line', { type: 'geojson', data: emptyFC() });
 
+    // Layers
     map.addLayer({ id: 'site-fill', type: 'fill', source: 'site-view',
       paint: { 'fill-color': '#16a34a', 'fill-opacity': 0.12 }});
     map.addLayer({ id: 'site-view', type: 'line', source: 'site-view',
@@ -66,9 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     map.addControl(draw);
 
-    // Handle new drawings
+    // Handle drawings
     map.on('draw.create', onDrawChange);
     map.on('draw.update', onDrawChange);
+    map.on('draw.modechange', () => { map.getCanvas().style.cursor = ''; });
 
     wireToolbar();
   });
@@ -80,54 +83,70 @@ document.addEventListener('DOMContentLoaded', () => {
     if (f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon') {
       siteBoundary = f;
       refreshSite();
-      // auto-rotation hint
+
+      // Auto-rotation hint
       const autoA = getLongestEdgeAngle(siteBoundary);
       const angleEl = $('rotationAngle');
       if (angleEl && (angleEl.value ?? '') === '') angleEl.value = autoA.toFixed(1);
-      setStats('<p>Site saved. Now draw your <b>Access Road</b> (Line), then Generate.</p>');
-      // keep the polygon, but clear draw canvas to avoid accidental edits
+
+      setStats('<p>Site saved. Now click <b>Pick Access Road</b> and draw your entrance line (curves allowed), then <b>Generate Plan</b>.</p>');
+
+      // Keep the polygon visible via our layer; clear Draw canvas to avoid accidental edits
       draw.deleteAll();
     }
 
     if (f.geometry?.type === 'LineString') {
       entranceRoad = f;
       map.getSource('access-line')?.setData(fc([entranceRoad]));
-      // don’t delete line — show it for clarity
+      setStats('<p>Access road saved. Click <b>Generate Plan</b> to build the spine and homes.</p>');
     }
   }
 
   function wireToolbar() {
-    $('drawSite').onclick = () => {
-      clearOutputs();
-      siteBoundary = null;
-      entranceRoad = null;
-      refreshSite();
-      map.getSource('access-line')?.setData(emptyFC());
-      draw.deleteAll();
-      draw.changeMode('draw_polygon');
-      setStats('<p>Draw the site boundary: click to add points, double‑click to finish.</p>');
-    };
+    const drawSiteBtn = $('drawSite');
+    const pickBtn     = $('pickEntrance');
+    const genBtn      = $('fillHomes');
+    const clearBtn    = $('clearAll');
 
-    const pickBtn = document.getElementById('pickEntrance');
+    if (drawSiteBtn) {
+      drawSiteBtn.onclick = () => {
+        clearOutputs();
+        siteBoundary = null;
+        entranceRoad = null;
+        refreshSite();
+        map.getSource('access-line')?.setData(emptyFC());
+        draw.deleteAll();
+        draw.changeMode('draw_polygon');
+        map.getCanvas().style.cursor = 'crosshair';
+        setStats('<p>Draw the site boundary: click to add points, double‑click to finish.</p>');
+      };
+    }
+
     if (pickBtn) {
       pickBtn.onclick = () => {
         if (!siteBoundary) { alert('Draw the site boundary first.'); return; }
         draw.changeMode('draw_line_string');
+        map.getCanvas().style.cursor = 'crosshair';
         setStats('<p>Draw the main access road (curved allowed). Double‑click to finish.</p>');
       };
     }
 
-    $('fillHomes').onclick = () => generateNow();
-    $('clearAll').onclick = () => {
-      clearOutputs();
-      siteBoundary = null;
-      entranceRoad = null;
-      refreshSite();
-      map.getSource('access-line')?.setData(emptyFC());
-      draw.deleteAll();
-    };
+    if (genBtn) {
+      genBtn.onclick = () => generateNow();
+    }
 
-    // Live updates when parameters change (if we have a site)
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        clearOutputs();
+        siteBoundary = null;
+        entranceRoad = null;
+        refreshSite();
+        map.getSource('access-line')?.setData(emptyFC());
+        if (draw) draw.deleteAll();
+      };
+    }
+
+    // Live updates when parameters change
     ['rotationAngle', 'houseType', 'frontSetback', 'sideGap'].forEach(id => {
       const el = $(id);
       if (!el) return;
