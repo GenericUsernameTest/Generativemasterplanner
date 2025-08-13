@@ -1,5 +1,5 @@
-// generateplan.js — access road + perpendicular spine + one-row homes along the spine
-import { $, emptyFC, fc, setStats, metersToDeg, unionAll, getLongestEdgeAngle } from './utils.js';
+// generateplan.js — access road + spine aligned to nearest boundary + one-row homes
+import { $, emptyFC, fc, setStats, metersToDeg, unionAll } from './utils.js';
 
 export function generatePlan(map, siteBoundary, accessRoad) {
   if (!siteBoundary) return alert('Draw the site boundary first.');
@@ -11,54 +11,52 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   if (houseType === 't2') { homeW = 5;  homeD = 8;  color = '#9fb7ff'; }
   if (houseType === 't3') { homeW = 10; homeD = 8;  color = '#9fb7ff'; }
 
-  const front  = parseFloat(($('frontSetback')?.value ?? '').trim()) || 5; // m
-  const side   = parseFloat(($('sideGap')?.value ?? '').trim())       || 2; // m
-
-  const rawAngle = parseFloat(($('rotationAngle')?.value ?? '').trim());
-  const angleDeg = Number.isFinite(rawAngle) ? rawAngle : getLongestEdgeAngle(siteBoundary);
+  const front = parseFloat(($('frontSetback')?.value ?? '').trim()) || 5; // m
+  const side  = parseFloat(($('sideGap')?.value ?? '').trim())       || 2; // m
 
   // Road widths (meters)
   const accessW   = 8;  // access road carriageway
-  const spineW    = 6;  // narrower spine
+  const spineW    = 6;  // spine carriageway
   const edgeClear = 8;  // keep roads back from site edge (m)
 
-  // ===== 2) Find ACCESS line segment inside the site (no buffering yet) =====
+  // ===== 2) Access line inside the site (no buffering yet) =====
   let accessInside = accessRoad && clipLineInside(accessRoad, siteBoundary);
   if (!accessInside && accessRoad) accessInside = accessRoad; // fallback
   let accessPoly = null;
 
-  // ===== 3) Build a SPINE from the interior end of the access (nearest-edge only) =====
-let spineLine = null;
-if (isLine(accessInside)) {
-  const j = pickInteriorEndpoint(accessInside, siteBoundary);     // junction point (Feature<Point>)
-  const edgeBear = nearestEdgeBearing(siteBoundary, j);           // parallel to nearest boundary edge
+  // ===== 3) Build SPINE aligned to NEAREST boundary bearing at the junction =====
+  let spineLine = null;
+  if (isLine(accessInside)) {
+    // interior end of access
+    const j = pickInteriorEndpoint(accessInside, siteBoundary);
+    const edgeBear = nearestEdgeBearing(siteBoundary, j); // bearing of closest boundary segment
 
-  // Build, clip and trim a spine along that bearing
-  const L = 2000; // long enough to cross any normal-sized site
-  const pL = turf.destination(j,  L, edgeBear, { units: 'meters' });
-  const pR = turf.destination(j, -L, edgeBear, { units: 'meters' });
-  const longLine  = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
-  const insideSeg = lineClipToPoly(longLine, siteBoundary);
-  if (isLine(insideSeg)) {
-    spineLine = trimLineEnds(insideSeg, edgeClear); // keep inboard a bit
+    if (Number.isFinite(edgeBear)) {
+      // Long line through the junction in +/- edge bearing; then clip & trim
+      const L = 2000; // m
+      const pL = turf.destination(j,  L, edgeBear, { units: 'meters' });
+      const pR = turf.destination(j, -L, edgeBear, { units: 'meters' });
+      const longSpine  = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
+      const insideSeg  = lineClipToPoly(longSpine, siteBoundary);
+      spineLine = isLine(insideSeg) ? trimLineEnds(insideSeg, edgeClear) : null;
+
+      // Small overlap so the access's round cap is hidden under the spine
+      const overlap = Math.max(accessW, spineW) * 0.6;
+      accessInside = extendLinePastPoint(accessInside, j, overlap);
+
+      // Now buffer the access (rounded cap; overlap hides it)
+      accessPoly = safeIntersectPoly(
+        turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
+        siteBoundary
+      );
+    }
   }
 
-  // Slightly overlap the access into the spine so any round cap is hidden
-  const overlap = Math.max(accessW, spineW) * 0.6;
-  accessInside = extendLinePastPoint(accessInside, j, overlap);
-
-  // Buffer the access (rounded is fine; overlap hides the cap)
-  accessPoly = safeIntersectPoly(
-    turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
-    siteBoundary
-  );
-}
-
-  // ===== 4) Buffer the SPINE with a ROUND cap =====
+  // ===== 4) Buffer the SPINE (round caps) =====
   let spinePoly = null;
   if (isLine(spineLine)) {
     spinePoly = safeIntersectPoly(
-      turf.buffer(spineLine, spineW / 2, { units: 'meters' }), // round caps by default
+      turf.buffer(spineLine, spineW / 2, { units: 'meters' }),
       siteBoundary
     );
   }
@@ -70,18 +68,23 @@ if (isLine(accessInside)) {
   if (spinePoly)  roadPieces.push(spinePoly);
 
   if (roadPieces.length) {
-    const u = unionAll(roadPieces);
-    roadsFC = fc([u]);
+    try {
+      const u = unionAll(roadPieces);
+      roadsFC = fc([u]);
+    } catch {
+      // fallback: show pieces un-unioned if union fails
+      roadsFC = fc(roadPieces);
+    }
   }
   map.getSource('roads-view')?.setData(roadsFC);
 
-  // ===== 6) Build a no‑build mask (roads + tiny safety buffer) =====
+  // ===== 6) No‑build mask (roads + tiny safety buffer) =====
   let noBuild = null;
   if (roadsFC.features.length) {
     try {
       const grow = fc(roadsFC.features.map(f => turf.buffer(f, 0.4, { units: 'meters' })));
       noBuild = unionAll(grow.features);
-    } catch (_) { /* ignore */ }
+    } catch { /* ignore */ }
   }
 
   // ===== 7) Place homes along the spine (one row each side), aligned to tangent =====
@@ -92,7 +95,7 @@ if (isLine(accessInside)) {
     const stepM    = Math.max(1, lotPitch);
 
     const Lm = turf.length(spineLine, { units: 'meters' });
-    const start = 0.5 * lotPitch;              // a little in from ends
+    const start = 0.5 * lotPitch;
     const stop  = Math.max(0, Lm - 0.5 * lotPitch);
 
     for (let s = start; s <= stop; s += stepM) {
@@ -101,7 +104,7 @@ if (isLine(accessInside)) {
       if (!Number.isFinite(bear)) continue;
 
       for (const sideSign of [-1, +1]) {
-        const center = turf.destination(base, offDist * sideSign, normBearing(bear), { units: 'meters' });
+        const center = turf.destination(base, offDist * sideSign, bear + 90, { units: 'meters' });
         const rect = orientedRect(center, bear, homeW, homeD, color);
         if (!turf.booleanWithin(rect, siteBoundary)) continue;
         if (noBuild && turf.booleanIntersects(rect, noBuild)) continue;
@@ -110,12 +113,11 @@ if (isLine(accessInside)) {
     }
   }
 
-  // ===== 8) Render homes + stats (density over whole site) =====
+  // ===== 8) Render homes + stats =====
   map.getSource('homes')?.setData(fc(homes));
   const siteHa = turf.area(siteBoundary) / 10000;
   setStats(`
     <p><strong>Homes placed:</strong> ${homes.length}</p>
-    <p><strong>Rotation (fallback only):</strong> ${angleDeg.toFixed(1)}°</p>
     <p><strong>Site density:</strong> ${(homes.length / (siteHa || 1)).toFixed(1)} homes/ha</p>
   `);
 }
@@ -184,8 +186,6 @@ function tangentBearing(line, atPointOrFeature) {
   return turf.bearing(p0, p1);
 }
 
-function normBearing(b) { return (b + 90); }
-
 // Clip a long line to a polygon; returns the longest piece inside
 function lineClipToPoly(line, poly) {
   try {
@@ -205,13 +205,12 @@ function lineClipToPoly(line, poly) {
   } catch { return null; }
 }
 
-// Trim N meters off both ends of a line
+// Trim N meters off both ends of a line (symmetrically)
 function trimLineEnds(line, trimM) {
   const Lm = turf.length(line, { units: 'meters' });
-  const a = Math.min(trimM, Lm / 2);
-  const b = Math.max(0, Lm - trimM);
+  const a  = Math.min(trimM, Lm / 2);
   const p0 = turf.along(line, a / 1000, { units: 'kilometers' });
-  const p1 = turf.along(line, b / 1000, { units: 'kilometers' });
+  const p1 = turf.along(line, (Lm - a) / 1000, { units: 'kilometers' });
   return turf.lineString([p0.geometry.coordinates, p1.geometry.coordinates]);
 }
 
@@ -265,6 +264,7 @@ function nearestEdgeBearing(sitePoly, pointFeature) {
   let bestDist = Infinity;
 
   const visitRing = (coords) => {
+    // coords: [ [x0,y0], [x1,y1], ..., [xN,yN] ] (closed)
     for (let i = 0; i < coords.length - 1; i++) {
       const a = coords[i];
       const b = coords[i + 1];
@@ -279,9 +279,9 @@ function nearestEdgeBearing(sitePoly, pointFeature) {
 
   const g = sitePoly.geometry;
   if (g.type === 'Polygon') {
-    visitRing(g.coordinates[0]);
+    visitRing(g.coordinates[0]); // outer ring
   } else if (g.type === 'MultiPolygon') {
-    for (const poly of g.coordinates) visitRing(poly[0]);
+    for (const poly of g.coordinates) visitRing(poly[0]); // outer rings
   }
 
   return bestBearing;
