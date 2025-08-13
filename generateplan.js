@@ -27,48 +27,32 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   if (!accessInside && accessRoad) accessInside = accessRoad; // fallback
   let accessPoly = null;
 
-  // ===== 3) Build a SPINE from the interior end of the access (nearest-edge–aware) =====
-  let spineLine = null;
-  if (isLine(accessInside)) {
-    // Junction at the interior end of the access
-    const j = pickInteriorEndpoint(accessInside, siteBoundary);
-    const tBear = tangentBearing(accessInside, j); // local tangent (deg)
+  // ===== 3) Build a SPINE from the interior end of the access (nearest-edge only) =====
+let spineLine = null;
+if (isLine(accessInside)) {
+  const j = pickInteriorEndpoint(accessInside, siteBoundary);     // junction point (Feature<Point>)
+  const edgeBear = nearestEdgeBearing(siteBoundary, j);           // parallel to nearest boundary edge
 
-    if (Number.isFinite(tBear)) {
-      // Two candidate orientations:
-      const perpBear  = normBearing(tBear);                  // A) perpendicular to access
-      const edgeBear  = nearestEdgeBearing(siteBoundary, j); // B) parallel to nearest boundary edge
-
-      // Build, clip and trim a candidate spine for a given bearing
-      const buildTrimmedSpine = (bearingDeg) => {
-        const L = 2000; // long enough to cross any normal-sized site
-        const pL = turf.destination(j,  L, bearingDeg, { units: 'meters' });
-        const pR = turf.destination(j, -L, bearingDeg, { units: 'meters' });
-        const longLine  = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
-        const insideSeg = lineClipToPoly(longLine, siteBoundary);
-        return isLine(insideSeg) ? trimLineEnds(insideSeg, edgeClear) : null;
-      };
-
-      const candPerp = buildTrimmedSpine(perpBear);
-      const candEdge = buildTrimmedSpine(edgeBear);
-
-      const lenPerp = candPerp ? turf.length(candPerp, { units: 'meters' }) : 0;
-      const lenEdge = candEdge ? turf.length(candEdge, { units: 'meters' }) : 0;
-
-      // Prefer the candidate that gives the longer internal run
-      spineLine = (lenEdge > lenPerp ? candEdge : candPerp) || candEdge || candPerp;
-
-      // Slightly overlap the access into the spine so any round cap is hidden
-      const overlap = Math.max(accessW, spineW) * 0.6; // e.g. ~5m if roads are 8/6m
-      accessInside = extendLinePastPoint(accessInside, j, overlap);
-
-      // Now buffer the access (rounded is fine; overlap hides the cap)
-      accessPoly = safeIntersectPoly(
-        turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
-        siteBoundary
-      );
-    }
+  // Build, clip and trim a spine along that bearing
+  const L = 2000; // long enough to cross any normal-sized site
+  const pL = turf.destination(j,  L, edgeBear, { units: 'meters' });
+  const pR = turf.destination(j, -L, edgeBear, { units: 'meters' });
+  const longLine  = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
+  const insideSeg = lineClipToPoly(longLine, siteBoundary);
+  if (isLine(insideSeg)) {
+    spineLine = trimLineEnds(insideSeg, edgeClear); // keep inboard a bit
   }
+
+  // Slightly overlap the access into the spine so any round cap is hidden
+  const overlap = Math.max(accessW, spineW) * 0.6;
+  accessInside = extendLinePastPoint(accessInside, j, overlap);
+
+  // Buffer the access (rounded is fine; overlap hides the cap)
+  accessPoly = safeIntersectPoly(
+    turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
+    siteBoundary
+  );
+}
 
   // ===== 4) Buffer the SPINE with a ROUND cap =====
   let spinePoly = null;
