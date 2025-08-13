@@ -3,7 +3,7 @@
 
 export function createRoads(siteBoundary, entranceLine, opts = {}) {
   // ---- options (meters) ----
-  const width = clamp(num(opts.mainRoadWidth, 8), 3, 30); // road full width
+  const width = clamp(num(opts.mainRoadWidth, 5), 3, 30); // road full width
 
   // ---- guards ----
   if (!isPoly(siteBoundary) || !isLine(entranceLine)) {
