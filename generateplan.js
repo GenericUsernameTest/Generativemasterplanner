@@ -30,7 +30,7 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   if (isLine(accessInside)) {
     // Buffer with FLAT cap so it “meets” the spine neatly
     accessPoly = safeIntersectPoly(
-      turf.buffer(accessInside, accessW / 2, { units: 'meters', endCap: 'flat' }),
+      turf.buffer(accessInside, accessW / 2, { units: 'meters', endCapStyle: 'flat' }),
       siteBoundary
     );
   }
