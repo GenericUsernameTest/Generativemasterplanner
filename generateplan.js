@@ -221,13 +221,12 @@ function lineClipToPoly(line, poly) {
   } catch { return null; }
 }
 
-// Trim N meters off both ends of a line
+// Trim N meters off both ends of a line (symmetrically)
 function trimLineEnds(line, trimM) {
   const Lm = turf.length(line, { units: 'meters' });
-  const a = Math.min(trimM, Lm / 2);
-  const b = Math.max(0, Lm - trimM);
+  const a  = Math.min(trimM, Lm / 2);            // actual trim per end
   const p0 = turf.along(line, a / 1000, { units: 'kilometers' });
-  const p1 = turf.along(line, b / 1000, { units: 'kilometers' });
+  const p1 = turf.along(line, (Lm - a) / 1000, { units: 'kilometers' });
   return turf.lineString([p0.geometry.coordinates, p1.geometry.coordinates]);
 }
 
