@@ -56,11 +56,9 @@ export function generatePlan(map, siteBoundary, accessRoad) {
       }
 
       // Nudge the ACCESS line to end exactly at the spine centerline (flat meeting point)
-      // If access endpoint is within 5 m of junction, shorten it slightly so the flat end
-      // finishes at the spine centre. This avoids the “stub under round cap” look.
       accessInside = shortenLineToPoint(accessInside, j, 0.5); // 0.5 m shy of the junction
       accessPoly = safeIntersectPoly(
-        turf.buffer(accessInside, accessW / 2, { units: 'meters', endCap: 'flat' }),
+        turf.buffer(accessInside, accessW / 2, { units: 'meters', endCapStyle: 'flat' }),
         siteBoundary
       );
     }
@@ -70,7 +68,7 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   let spinePoly = null;
   if (isLine(spineLine)) {
     spinePoly = safeIntersectPoly(
-      turf.buffer(spineLine, spineW / 2, { units: 'meters', endCap: 'round' }),
+      turf.buffer(spineLine, spineW / 2, { units: 'meters', endCapStyle: 'round' }),
       siteBoundary
     );
   }
@@ -175,7 +173,6 @@ function pickInteriorEndpoint(accessInside, sitePoly) {
   const a = turf.point(cs[0]);
   const b = turf.point(cs[cs.length - 1]);
   const cen = turf.center(sitePoly);
-  // Pick the endpoint closer to the site centroid (usually the interior end)
   const da = turf.distance(a, cen, { units: 'meters' });
   const db = turf.distance(b, cen, { units: 'meters' });
   return da < db ? a : b;
@@ -190,7 +187,6 @@ function tangentBearing(line, atPointOrFeature) {
   if (typeof atPointOrFeature === 'number') {
     sMeters = Math.max(0, Math.min(total, atPointOrFeature));
   } else {
-    // Find nearest distance along the line to the given point
     const snapped = turf.nearestPointOnLine(line, atPointOrFeature);
     sMeters = snapped.properties.location * 1000; // km -> m
   }
@@ -216,7 +212,6 @@ function lineClipToPoly(line, poly) {
       return turf.booleanPointInPolygon(mid, poly);
     });
     if (!inside.length) return null;
-    // longest
     let best = inside[0], bestLen = turf.length(best);
     for (let i = 1; i < inside.length; i++) {
       const L = turf.length(inside[i]);
@@ -239,8 +234,6 @@ function trimLineEnds(line, trimM) {
 // Shorten a line so its end finishes shy of a point by 'gapM' (used to meet spine centerline cleanly)
 function shortenLineToPoint(line, point, gapM) {
   const snapped = turf.nearestPointOnLine(line, point);
-  const idx = snapped.properties.index; // segment index
-  // Decide which end is the junction end: the closer vertex to 'point'
   const cs = line.geometry.coordinates.slice();
   const endA = turf.point(cs[0]);
   const endB = turf.point(cs[cs.length - 1]);
@@ -248,7 +241,6 @@ function shortenLineToPoint(line, point, gapM) {
   const dB = turf.distance(endB, point, { units: 'meters' });
 
   if (dA < dB) {
-    // shorten from A end towards inside by gapM
     const dir = turf.bearing(endA, turf.point(cs[1]));
     const newA = turf.destination(point, gapM, dir + 180, { units: 'meters' }).geometry.coordinates;
     cs[0] = newA;
@@ -270,7 +262,6 @@ function orientedRect(center, bearingDeg, widthM, depthM, color) {
   const halfW = (widthM / 2);
   const halfD = (depthM / 2);
 
-  // Build axis-aligned (in local meters->deg) around origin, then rotate about center
   const rect = turf.polygon([[
     [cx - halfW * dLon, cy - halfD * dLat],
     [cx + halfW * dLon, cy - halfD * dLat],
@@ -279,6 +270,5 @@ function orientedRect(center, bearingDeg, widthM, depthM, color) {
     [cx - halfW * dLon, cy - halfD * dLat],
   ]], { height: 4, color });
 
-  // Rotate to bearing
   return turf.transformRotate(rect, bearingDeg, { pivot: [cx, cy] });
 }
