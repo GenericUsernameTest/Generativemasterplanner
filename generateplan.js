@@ -27,26 +27,21 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   if (!accessInside && accessRoad) accessInside = accessRoad; // fallback
   let accessPoly = null;
 
-// ===== 3) Build a SPINE from the interior end of the access (edge ⟂ access) =====
+// ===== 3) Build a SPINE from the interior end of the access (nearest-edge–aware) =====
 let spineLine = null;
 if (isLine(accessInside)) {
-  const j = pickInteriorEndpoint(accessInside, siteBoundary);     // junction point (Feature<Point>)
-  const tBear = tangentBearing(accessInside, j);                  // access tangent (deg)
+  // Junction at the interior end of the access
+  const j = pickInteriorEndpoint(accessInside, siteBoundary);
+  const tBear = tangentBearing(accessInside, j); // local tangent (deg)
+
   if (Number.isFinite(tBear)) {
+    // Two candidate orientations:
+    const perpBear  = normBearing(tBear);                 // A) perpendicular to access
+    const edgeBear  = nearestEdgeBearing(siteBoundary, j); // B) parallel to nearest boundary edge
 
-    // 3A) Gather candidate bearings:
-    //  • access ⟂ (old rule)
-    //  • normals of boundary segments that are ~perpendicular to the access
-    const accessPerp = normBearing(tBear);                        // access ⟂
-    const edgeNormalCands = perpBoundaryNormals(siteBoundary, j, tBear, {
-      searchRadiusM: 100,   // look at boundary within 100 m of the junction
-      perpToleranceDeg: 20, // accept segments whose bearing is within ±20° of ⟂ to access
-      dedupeDeg: 8          // merge near-duplicate bearings
-    });
-
-    // 3B) Build, clip, and trim each candidate, keep the longest inside the site
+    // Build, clip and trim a candidate spine for a given bearing
     const buildTrimmedSpine = (bearingDeg) => {
-      const L = 2000; // long enough to cross most sites
+      const L = 2000; // long enough to cross any normal-sized site
       const pL = turf.destination(j,  L, bearingDeg, { units: 'meters' });
       const pR = turf.destination(j, -L, bearingDeg, { units: 'meters' });
       const longLine  = turf.lineString([pL.geometry.coordinates, pR.geometry.coordinates]);
@@ -54,21 +49,20 @@ if (isLine(accessInside)) {
       return isLine(insideSeg) ? trimLineEnds(insideSeg, edgeClear) : null;
     };
 
-    const allBearings = [accessPerp, ...edgeNormalCands];
-    let best = null, bestLen = 0;
-    for (const b of allBearings) {
-      const seg = buildTrimmedSpine(b);
-      if (!isLine(seg)) continue;
-      const len = turf.length(seg, { units: 'meters' });
-      if (len > bestLen) { best = seg; bestLen = len; }
-    }
-    spineLine = best;
+    const candPerp = buildTrimmedSpine(perpBear);
+    const candEdge = buildTrimmedSpine(edgeBear);
 
-    // 3C) Slightly overlap the access into the chosen spine so any round cap is hidden
-    const overlap = Math.max(accessW, spineW) * 0.6; // e.g. ~5 m with 8/6 m roads
+    const lenPerp = candPerp ? turf.length(candPerp, { units: 'meters' }) : 0;
+    const lenEdge = candEdge ? turf.length(candEdge, { units: 'meters' }) : 0;
+
+    // Prefer the candidate that gives the longer internal run
+    spineLine = (lenEdge > lenPerp ? candEdge : candPerp) || candEdge || candPerp;
+
+    // Slightly overlap the access into the spine so any round cap is hidden
+    const overlap = Math.max(accessW, spineW) * 0.6; // e.g. ~5m if roads are 8/6m
     accessInside = extendLinePastPoint(accessInside, j, overlap);
 
-    // 3D) Buffer the access (rounded cap; overlap hides it)
+    // Now buffer the access (rounded is fine; overlap hides the cap)
     accessPoly = safeIntersectPoly(
       turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
       siteBoundary
@@ -135,11 +129,11 @@ if (isLine(accessInside)) {
   // ===== 8) Render homes + stats (density over whole site) =====
   map.getSource('homes')?.setData(fc(homes));
   const siteHa = turf.area(siteBoundary) / 10000;
-  setStats(`
+  setStats(
     <p><strong>Homes placed:</strong> ${homes.length}</p>
     <p><strong>Rotation (fallback only):</strong> ${angleDeg.toFixed(1)}°</p>
     <p><strong>Site density:</strong> ${(homes.length / (siteHa || 1)).toFixed(1)} homes/ha</p>
-  `);
+  );
 }
 
 /* ================= helpers ================= */
@@ -227,12 +221,13 @@ function lineClipToPoly(line, poly) {
   } catch { return null; }
 }
 
-// Trim N meters off both ends of a line (symmetrically)
+// Trim N meters off both ends of a line
 function trimLineEnds(line, trimM) {
   const Lm = turf.length(line, { units: 'meters' });
-  const a  = Math.min(trimM, Lm / 2);            // actual trim per end
+  const a = Math.min(trimM, Lm / 2);
+  const b = Math.max(0, Lm - trimM);
   const p0 = turf.along(line, a / 1000, { units: 'kilometers' });
-  const p1 = turf.along(line, (Lm - a) / 1000, { units: 'kilometers' });
+  const p1 = turf.along(line, b / 1000, { units: 'kilometers' });
   return turf.lineString([p0.geometry.coordinates, p1.geometry.coordinates]);
 }
 
@@ -309,70 +304,4 @@ function nearestEdgeBearing(sitePoly, pointFeature) {
   }
 
   return bestBearing;
-}
-
-// ---- helpers required by Step 3 ----
-function wrapDeg(a){ return ((a + 180) % 360 + 360) % 360 - 180; }
-function angDiff(a,b){ return Math.abs(wrapDeg(a - b)); }
-
-/**
- * Return bearings that are normals to boundary segments near `junctionPoint`
- * whose segment direction is ~perpendicular to the access bearing.
- */
-function perpBoundaryNormals(sitePoly, junctionPoint, accessBearing, opts = {}) {
-  const R       = opts.searchRadiusM ?? 100;   // meters
-  const tolDeg  = opts.perpToleranceDeg ?? 20; // accept ~perpendicular segments
-  const dedupe  = opts.dedupeDeg ?? 8;         // collapse near-duplicates
-
-  const segs = collectBoundarySegmentsNear(sitePoly, junctionPoint, R);
-
-  const target1 = wrapDeg(accessBearing + 90);
-  const target2 = wrapDeg(accessBearing - 90);
-
-  let normals = [];
-  for (const seg of segs) {
-    const b = seg.bearing;
-    const d = Math.min(angDiff(b, target1), angDiff(b, target2));
-    if (d <= tolDeg) {
-      normals.push(wrapDeg(b + 90), wrapDeg(b - 90));
-    }
-  }
-
-  normals.sort((a,b)=>a-b);
-  const out = [];
-  for (const n of normals) {
-    if (!out.length || angDiff(n, out[out.length-1]) > dedupe) out.push(n);
-  }
-  return out;
-}
-
-/**
- * Collect boundary segments within `radiusM` of a point.
- * Each item: { a:[x,y], b:[x,y], bearing:Number }
- */
-function collectBoundarySegmentsNear(sitePoly, pointFeature, radiusM) {
-  const segs = [];
-
-  const visitRing = (coords) => {
-    for (let i = 0; i < coords.length - 1; i++) {
-      const a = coords[i], b = coords[i+1];
-      const mid = turf.midpoint(turf.point(a), turf.point(b));
-      const dm  = turf.distance(mid, pointFeature, { units: 'meters' });
-      if (dm > radiusM) continue;
-
-      segs.push({
-        a, b,
-        bearing: turf.bearing(turf.point(a), turf.point(b))
-      });
-    }
-  };
-
-  const g = sitePoly.geometry;
-  if (g.type === 'Polygon') {
-    visitRing(g.coordinates[0]);            // outer ring
-  } else if (g.type === 'MultiPolygon') {
-    for (const poly of g.coordinates) visitRing(poly[0]);
-  }
-
-  return segs;
 }
