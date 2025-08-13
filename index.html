@@ -1,97 +1,81 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Generative Masterplanner – Boundary, Roads, Parks & Homes</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-
+  <title>Asembl – Generative Masterplanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <!-- Mapbox CSS -->
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
-
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-
-    /* Top nav with logo */
+    :root { --panel-bg: rgba(255,255,255,0.94); }
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #map { position: absolute; inset: 0; }
+    /* Top bar /
     #top-nav {
-      position: fixed; top: 0; left: 0; right: 0; height: 50px;
-      background: white; display: flex; align-items: center;
-      padding: 0 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 1001;
+      position: fixed; left: 0; right: 0; top: 0; height: 48px;
+      background: #fff; display: flex; align-items: center; gap: 8px;
+      padding: 0 12px; box-shadow: 0 2px 6px rgba(0,0,0,.08); z-index: 1002;
     }
-    #top-nav img { height: 28px; margin-right: 8px; }
-
-    /* Toolbar as a fixed panel (top-right) */
+    #brand { font-weight: 700; letter-spacing: .2px; }
+    / Toolbar */
     #toolbar {
-      position: fixed; top: 60px; right: 12px; width: 320px;
-      background: rgba(255,255,255,0.92); padding: 10px; border-radius: 10px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-      display: grid; gap: 8px; z-index: 1000;
+      position: fixed; top: 60px; right: 12px; width: 340px;
+      background: var(--panel-bg); backdrop-filter: blur(4px);
+      border-radius: 10px; padding: 10px; box-shadow: 0 10px 22px rgba(0,0,0,.14);
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; z-index: 1001;
     }
-    #toolbar button, #toolbar label, #toolbar input, #toolbar select { width: 100%; box-sizing: border-box; }
-    #toolbar .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    #toolbar .danger { background: #fee2e2; border: 1px solid #fca5a5; }
-
-    /* Stats box */
+    #toolbar h4 { grid-column: 1 / -1; margin: 6px 0 2px; font-size: 13px; color: #111; }
+    #toolbar button, #toolbar select, #toolbar input {
+      font-size: 14px; padding: 8px; border-radius: 8px; border: 1px solid #ddd; background: #fff;
+    }
+    #toolbar button { cursor: pointer; }
+    #toolbar .span2 { grid-column: 1 / -1; }
+    #toolbar .tight { display:flex; gap:6px; }
+    #toolbar .tight > * { flex: 1; }
+    /* Stats */
     #stats {
-      position: fixed; bottom: 20px; left: 20px; background: white;
-      padding: 10px; border-radius: 6px; font-size: 14px; line-height: 1.4;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15); z-index: 1000;
+      position: fixed; left: 16px; bottom: 16px; background: var(--panel-bg);
+      border-radius: 8px; padding: 10px 12px; font-size: 14px; box-shadow: 0 6px 16px rgba(0,0,0,.12);
+      z-index: 1001; min-width: 220px;
     }
   </style>
 </head>
 <body>
-  <!-- Top Navigation Bar -->
-  <div id="top-nav">
-    <img src="logo.png" alt="Asembl Logo">
-    <strong>Asembl</strong>
-  </div>
-
+  <div id="top-nav"><span id="brand">Asembl</span></div>
   <div id="map"></div>
-  <div id="stats"></div>
-
-  <!-- Floating Toolbar -->
   <div id="toolbar">
-    <button id="drawSite">Draw Site Boundary</button>
-    <button id="pickEntrance">Draw Access Road</button>
-
-    <div class="row">
-      <button id="drawPark">Draw Park</button>
-      <button id="clearParks">Clear Parks</button>
+    <button id="drawSite"   class="span2">Draw Site Boundary</button>
+    <button id="pickAccess" class="span2">Draw Access Road</button>
+    <button id="drawPark">Draw Park</button>
+    <button id="clearParks">Clear Parks</button>
+    <h4>House type</h4><div></div>
+    <select id="houseType" class="span2">
+      <option value="t1">Type 1 — 5m × 5m</option>
+      <option value="t2" selected>Type 2 — 5m × 8m</option>
+      <option value="t3">Type 3 — 10m × 8m</option>
+    </select>
+    <div class="tight span2">
+      <div style="flex:1;">
+        <label for="frontSetback" style="font-size:12px;">Front setback (m)</label>
+        <input id="frontSetback" type="number" step="0.5" value="5" />
+      </div>
+      <div style="flex:1;">
+        <label for="sideGap" style="font-size:12px;">Side gap (m)</label>
+        <input id="sideGap" type="number" step="0.5" value="2" />
+      </div>
     </div>
-
-    <label>House type
-      <select id="houseType">
-        <option value="t1">Type 1 (5×5)</option>
-        <option value="t2" selected>Type 2 (5×8)</option>
-        <option value="t3">Type 3 (10×8)</option>
-      </select>
-    </label>
-
-    <div class="row">
-      <label>Front setback (m)
-        <input id="frontSetback" type="number" value="5" step="0.5"/>
-      </label>
-      <label>Side gap (m)
-        <input id="sideGap" type="number" value="2" step="0.5"/>
-      </label>
-    </div>
-
-    <div class="row">
-      <button id="fillHomes">Generate</button>
-      <button id="clearAll" class="danger">Clear All</button>
-    </div>
+    <button id="generate" class="span2">Generate</button>
+    <button id="clearAll" class="span2" style="background:
+#fff3f3;border-color:
+#f1c9c9;">Clear All</button>
   </div>
-
-  <!-- Mapbox / Turf JS -->
+  <div id="stats"></div>
+  <!-- Libs -->
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.min.js"></script>
-
-  <!-- App JS (ES modules) -->
-  <script type="module" src="main.js"></script>
+  <!-- App (ES modules) -->
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
