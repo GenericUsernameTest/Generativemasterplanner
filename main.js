@@ -1,7 +1,7 @@
 import { $, emptyFC } from './utils.js';
 import { generatePlan } from './generateplan.js';
 
-mapboxgl.accessToken = 'pk.eyJ1IjoiY2FtZXRyb24iLCJhIjoiY2xubGVneHk1MDB3bDJqcGZqMG4wYXl5OCJ9.6dOqCV1chqgYOV8a0KmfAg';
+mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
 const map = new mapboxgl.Map({
   container: 'map',
