@@ -1,7 +1,7 @@
-// generateplan.js — access road + spine aligned to nearest boundary + one-row homes
+// generateplan.js — access road + spine aligned to nearest boundary + one‑row homes (+ parks mask)
 import { $, emptyFC, fc, setStats, metersToDeg, unionAll } from './utils.js';
 
-export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'FeatureCollection', features:[]}) {
+export function generatePlan(map, siteBoundary, accessRoad, parksFC = { type: 'FeatureCollection', features: [] }) {
   if (!siteBoundary) return alert('Draw the site boundary first.');
 
   // ===== 1) Inputs =====
@@ -19,17 +19,17 @@ export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'Fea
   const spineW    = 6;  // spine carriageway
   const edgeClear = 8;  // keep roads back from site edge (m)
 
-  // ===== 2) Access line inside the site (no buffering yet) =====
+  // ===== 2) Access line segment inside the site (no buffering yet) =====
   let accessInside = accessRoad && clipLineInside(accessRoad, siteBoundary);
-  if (!accessInside && accessRoad) accessInside = accessRoad; // fallback
+  if (!accessInside && accessRoad) accessInside = accessRoad; // fallback (if split fails but it’s mostly inside)
   let accessPoly = null;
 
   // ===== 3) Build SPINE aligned to NEAREST boundary bearing at the junction =====
   let spineLine = null;
   if (isLine(accessInside)) {
-    // interior end of access
+    // Interior end of access = junction
     const j = pickInteriorEndpoint(accessInside, siteBoundary);
-    const edgeBear = nearestEdgeBearing(siteBoundary, j); // bearing of closest boundary segment
+    const edgeBear = nearestEdgeBearing(siteBoundary, j); // bearing of closest boundary segment at the junction
 
     if (Number.isFinite(edgeBear)) {
       // Long line through the junction in +/- edge bearing; then clip & trim
@@ -40,11 +40,11 @@ export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'Fea
       const insideSeg  = lineClipToPoly(longSpine, siteBoundary);
       spineLine = isLine(insideSeg) ? trimLineEnds(insideSeg, edgeClear) : null;
 
-      // Small overlap so the access's round cap is hidden under the spine
-      const overlap = Math.max(accessW, spineW) * 0.6;
+      // Small overlap so the access’s round cap is hidden under the spine
+      const overlap = Math.max(accessW, spineW) * 0.6; // e.g. ~5m for 8/6m roads
       accessInside = extendLinePastPoint(accessInside, j, overlap);
 
-      // Now buffer the access (rounded cap; overlap hides it)
+      // Buffer the access (round caps are fine; overlap hides the cap at the junction)
       accessPoly = safeIntersectPoly(
         turf.buffer(accessInside, accessW / 2, { units: 'meters' }),
         siteBoundary
@@ -78,30 +78,25 @@ export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'Fea
   }
   map.getSource('roads-view')?.setData(roadsFC);
 
-    // ===== 5.5) 🟢 Parks union + combined no‑build =====
-  let parksUnion = null; // polygon/multipolygon of all parks
+  // ===== 5.5) Parks union + combined no‑build =====
+  let parksUnion = null;
   if (parksFC?.features?.length) {
     try { parksUnion = unionAll(parksFC.features); } catch { parksUnion = null; }
   }
 
-  let noBuild = null;
+  let noBuild = null; // areas where houses cannot be (roads + parks), with a tiny growth for roads
   try {
     const pieces = [];
-    if (roadsFC.features?.length) pieces.push(...roadsFC.features);
+    if (roadsFC.features?.length) {
+      // Slight growth on roads so houses don’t kiss the carriageway polygons
+      const grow = roadsFC.features.map(f => turf.buffer(f, 0.4, { units: 'meters' }));
+      pieces.push(...grow);
+    }
     if (parksUnion) pieces.push(parksUnion);
     if (pieces.length) noBuild = unionAll(pieces);
-  } catch { /* ignore */ }
+  } catch { /* keep noBuild = null */ }
 
-  // ===== 6) No‑build mask (roads + tiny safety buffer) =====
-  let noBuild = null;
-  if (roadsFC.features.length) {
-    try {
-      const grow = fc(roadsFC.features.map(f => turf.buffer(f, 0.4, { units: 'meters' })));
-      noBuild = unionAll(grow.features);
-    } catch { /* ignore */ }
-  }
-
-  // ===== 7) Place homes along the spine (one row each side), aligned to tangent =====
+  // ===== 6) Place homes along the spine (one row each side), aligned to tangent =====
   const homes = [];
   if (isLine(spineLine)) {
     const lotPitch = homeW + side;         // m
@@ -109,7 +104,7 @@ export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'Fea
     const stepM    = Math.max(1, lotPitch);
 
     const Lm = turf.length(spineLine, { units: 'meters' });
-    const start = 0.5 * lotPitch;
+    const start = 0.5 * lotPitch;              // a little in from ends
     const stop  = Math.max(0, Lm - 0.5 * lotPitch);
 
     for (let s = start; s <= stop; s += stepM) {
@@ -120,18 +115,15 @@ export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'Fea
       for (const sideSign of [-1, +1]) {
         const center = turf.destination(base, offDist * sideSign, bear + 90, { units: 'meters' });
         const rect = orientedRect(center, bear, homeW, homeD, color);
+        // Keep inside site, and NOT overlapping roads/parks
         if (!turf.booleanWithin(rect, siteBoundary)) continue;
         if (noBuild && turf.booleanIntersects(rect, noBuild)) continue;
         homes.push(rect);
       }
     }
   }
-          // Keep inside site, and NOT overlapping roads/parks
-        if (!turf.booleanWithin(rect, siteBoundary)) continue;
-        if (noBuild && turf.booleanIntersects(rect, noBuild)) continue; // 🟢 NEW
-        homes.push(rect);
 
-  // ===== 8) Render homes + stats =====
+  // ===== 7) Render homes + stats =====
   map.getSource('homes')?.setData(fc(homes));
   const siteHa = turf.area(siteBoundary) / 10000;
   setStats(`
