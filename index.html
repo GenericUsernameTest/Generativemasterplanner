@@ -1,88 +1,63 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Generative Masterplanner – Boundary, Roads & Homes</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta charset="utf-8"/>
+  <title>Generative Masterplanner (access + spine + parks)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
 
-  <!-- Mapbox CSS (CDN) -->
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css?access_token=pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw" rel="stylesheet" />
+  <!-- Mapbox GL & Draw -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.16.1/mapbox-gl.css" rel="stylesheet"/>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.16.1/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet"/>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
 
-  <style>
-    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    #map { position: fixed; inset: 0; }
+  <!-- Turf -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
 
-    /* Top nav with single logo */
-    #top-nav {
-      position: fixed; top: 0; left: 0; right: 0; height: 50px;
-      background: #fff; display: flex; align-items: center; padding: 0 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,.1); z-index: 1001;
-    }
-    #top-nav img { height: 28px; display: block; }
-
-    /* Toolbar: fixed width panel */
-    #toolbar {
-      position: fixed; top: 60px; right: 12px; width: 320px;
-      background: rgba(255,255,255,0.92); padding: 10px; border-radius: 10px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.12); display: flex; flex-direction: column; gap: 8px; z-index: 1000;
-    }
-    #toolbar button, #toolbar label, #toolbar input[type="number"] { width: 100%; }
-    #toolbar input[type="number"] { padding: 6px 8px; font-size: 14px; box-sizing: border-box; }
-
-    /* Stats box */
-    #stats {
-      position: fixed; bottom: 20px; left: 20px; background: #fff; padding: 10px;
-      border-radius: 6px; font-size: 14px; line-height: 1.4; box-shadow: 0 2px 6px rgba(0,0,0,.15); z-index: 1000;
-      min-width: 240px;
-    }
-
-    /* Keep nav controls above stats */
-    .mapboxgl-ctrl-bottom-right { margin-bottom: 80px; }
-  </style>
+  <link rel="stylesheet" href="./styles.css"/>
 </head>
 <body>
-  <!-- Top Navigation Bar -->
-  <div id="top-nav">
-    <img src="logo.png" alt="Asembl Logo">
+  <div id="app">
+    <div id="sidebar">
+      <h1>Masterplan</h1>
+
+      <div class="group">
+        <button id="drawSite">Draw Site</button>
+        <button id="pickEntrance">Draw Access Road</button>
+      </div>
+
+      <div class="group">
+        <button id="drawPark">Draw Park</button>
+        <button id="clearParks">Clear Parks</button>
+      </div>
+
+      <div class="group">
+        <label>House type
+          <select id="houseType">
+            <option value="t1">Type 1 (5×5)</option>
+            <option value="t2" selected>Type 2 (5×8)</option>
+            <option value="t3">Type 3 (10×8)</option>
+          </select>
+        </label>
+        <label>Front setback (m)
+          <input id="frontSetback" type="number" value="5" step="0.5"/>
+        </label>
+        <label>Side gap (m)
+          <input id="sideGap" type="number" value="2" step="0.5"/>
+        </label>
+      </div>
+
+      <div class="group">
+        <button id="fillHomes">Generate</button>
+        <button id="clearAll" class="danger">Clear All</button>
+      </div>
+
+      <div id="stats"></div>
+    </div>
+
+    <div id="map"></div>
   </div>
 
-  <div id="map"></div>
-
-  <div id="stats"></div>
-
-  <div id="toolbar">
-    <button id="drawSite">Draw Site Boundary</button>
-    <button id="fillHomes">Generate Plan</button>
-    <button id="clearAll">Clear All</button>
-    <button id="pickEntrance">Pick Entrance Road</button>
-<button id="clearEntrance">Clear Entrance Road</button>
-
-    <label for="rotationAngle">Rotation (degrees):</label>
-    <input type="number" id="rotationAngle" placeholder="Auto">
-
-<label for="houseType">House Type:</label>
-<select id="houseType">
-  <option value="t1">Type 1 — 5m × 5m</option>
-  <option value="t2">Type 2 — 5m × 8m</option>
-  <option value="t3">Type 3 — 10m × 8m</option>
-</select>
-
-    <label for="frontSetback">Front Setback (m):</label>
-    <input type="number" id="frontSetback" value="5">
-
-    <label for="sideGap">Side Gap (m):</label>
-    <input type="number" id="sideGap" value="2">
-  </div>
-
-  <!-- Mapbox JS (CDN) -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.min.js?access_token=pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw"></script>
-
-  <!-- Your app (ES modules) -->
-  <script type="module" src="main.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
