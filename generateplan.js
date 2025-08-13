@@ -1,7 +1,7 @@
 // generateplan.js — access road + spine aligned to nearest boundary + one-row homes
 import { $, emptyFC, fc, setStats, metersToDeg, unionAll } from './utils.js';
 
-export function generatePlan(map, siteBoundary, accessRoad) {
+export function generatePlan(map, siteBoundary, accessRoad, parksFC = {type:'FeatureCollection', features:[]}) {
   if (!siteBoundary) return alert('Draw the site boundary first.');
 
   // ===== 1) Inputs =====
@@ -78,6 +78,20 @@ export function generatePlan(map, siteBoundary, accessRoad) {
   }
   map.getSource('roads-view')?.setData(roadsFC);
 
+    // ===== 5.5) 🟢 Parks union + combined no‑build =====
+  let parksUnion = null; // polygon/multipolygon of all parks
+  if (parksFC?.features?.length) {
+    try { parksUnion = unionAll(parksFC.features); } catch { parksUnion = null; }
+  }
+
+  let noBuild = null;
+  try {
+    const pieces = [];
+    if (roadsFC.features?.length) pieces.push(...roadsFC.features);
+    if (parksUnion) pieces.push(parksUnion);
+    if (pieces.length) noBuild = unionAll(pieces);
+  } catch { /* ignore */ }
+
   // ===== 6) No‑build mask (roads + tiny safety buffer) =====
   let noBuild = null;
   if (roadsFC.features.length) {
@@ -112,6 +126,10 @@ export function generatePlan(map, siteBoundary, accessRoad) {
       }
     }
   }
+          // Keep inside site, and NOT overlapping roads/parks
+        if (!turf.booleanWithin(rect, siteBoundary)) continue;
+        if (noBuild && turf.booleanIntersects(rect, noBuild)) continue; // 🟢 NEW
+        homes.push(rect);
 
   // ===== 8) Render homes + stats =====
   map.getSource('homes')?.setData(fc(homes));
