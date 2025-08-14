@@ -162,6 +162,7 @@ map.on('draw.create', function(e) {
             features: [feature]
         });
         
+        // Calculate TOTAL boundary area (not just developed area)
         const area = calculateArea(feature.geometry.coordinates[0]);
         stats.totalArea = area;
         updateStats();
@@ -343,7 +344,7 @@ function generateHousesAlongRoads() {
                 if (isPointInPolygon(housePoint, boundaryCoords) &&
                     !isPointOnAccessRoad(housePoint, coords, 0.00008)) {
                     
-                    const house = createRotatedHouse(houseX, houseY, houseWidth, houseLength, spineAngle);
+                    const house = createPerfectSquareHouse(houseX, houseY, houseWidth, houseLength);
                     
                     if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
                         houses.push({
@@ -424,6 +425,26 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
     }
     
     return closestEdge;
+}
+
+function createPerfectSquareHouse(centerX, centerY, width, length) {
+    // Create perfect 90-degree square/rectangle - NO ROTATION AT ALL
+    const halfWidth = width / 2;
+    const halfLength = length / 2;
+    
+    // Perfect axis-aligned rectangle
+    const corners = [
+        [centerX - halfLength, centerY - halfWidth], // Bottom left
+        [centerX + halfLength, centerY - halfWidth], // Bottom right (perfectly 90°)
+        [centerX + halfLength, centerY + halfWidth], // Top right (perfectly 90°)
+        [centerX - halfLength, centerY + halfWidth], // Top left (perfectly 90°)
+        [centerX - halfLength, centerY - halfWidth]  // Close polygon
+    ];
+    
+    return {
+        type: 'Polygon',
+        coordinates: [corners]
+    };
 }
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
@@ -573,12 +594,13 @@ function calculateArea(coordinates) {
 }
 
 function updateStats() {
+    // Total Area is ALWAYS the full boundary area (set when boundary is drawn)
     document.getElementById('total-area').textContent = stats.totalArea + ' ha';
     document.getElementById('home-count').textContent = stats.homeCount;
     
-    // CORRECT DENSITY: homes per total site area (not per hectare)
+    // Density: homes per hectare of TOTAL site area
     if (stats.totalArea > 0) {
-        stats.density = Math.round(stats.homeCount / stats.totalArea); // Homes per hectare
+        stats.density = Math.round(stats.homeCount / stats.totalArea);
     } else {
         stats.density = 0;
     }
