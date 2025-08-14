@@ -1,106 +1,204 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>Generative Masterplanner – Boundary, Roads & Homes</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-  <!-- Mapbox CSS -->
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css" rel="stylesheet" />
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+}
 
-  <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+/* Full screen map */
+#map {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 1;
+}
 
-    /* Top nav with logo */
-    #top-nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 50px;
-      background: white;
-      display: flex;
-      align-items: center;
-      padding: 0 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 1001;
+/* Navigation Bar */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 75px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+/* Toolbox (Top Right) */
+.toolbox {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 15px;
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.toolbox h3 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.tool-button {
+    display: block;
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.tool-button:hover {
+    background: #2980b9;
+    transform: translateY(-1px);
+}
+
+.tool-button:active, .tool-button.active {
+    background: #e74c3c;
+    transform: translateY(0);
+}
+
+.tool-button:last-child {
+    margin-bottom: 0;
+    background: #27ae60;
+}
+
+.tool-button:last-child:hover {
+    background: #229954;
+}
+
+/* Stats Box (Bottom Left) */
+.stats-box {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 20px;
+    z-index: 1000;
+    min-width: 250px;
+}
+
+.stats-box h3 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.stat-label {
+    color: #7f8c8d;
+    font-weight: 500;
+}
+
+.stat-value {
+    color: #2c3e50;
+    font-weight: bold;
+}
+
+.stat-item:last-child {
+    margin-bottom: 0;
+}
+
+/* Loading indicator */
+.loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    display: none;
+}
+
+/* Notification system */
+.notification {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #3498db;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    z-index: 1500;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.notification.show {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.notification.success {
+    background: #27ae60;
+}
+
+.notification.error {
+    background: #e74c3c;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .toolbox {
+        right: 10px;
+        min-width: 180px;
+        padding: 12px;
     }
-    #top-nav img {
-      height: 28px;
-      margin-right: 8px;
+    
+    .stats-box {
+        left: 10px;
+        right: 10px;
+        min-width: auto;
+        padding: 15px;
     }
-
-    /* Toolbar as a fixed-width panel (top-right) */
-    #toolbar {
-      position: fixed;
-      top: 60px;
-      right: 12px;
-      width: 320px;
-      background: rgba(255,255,255,0.92);
-      padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      z-index: 1000;
+    
+    .navbar {
+        padding: 0 15px;
     }
-    #toolbar button,
-    #toolbar label,
-    #toolbar input[type="number"] {
-      width: 100%;
+    
+    .logo {
+        font-size: 20px;
     }
-    #rotationAngle {
-      padding: 6px 8px;
-      font-size: 14px;
-      box-sizing: border-box;
-    }
-
-    /* Stats box */
-    #stats {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      background: white;
-      padding: 10px;
-      border-radius: 6px;
-      font-size: 14px;
-      line-height: 1.4;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      z-index: 1000;
-    }
-  </style>
-</head>
-<body>
-  <!-- Top Navigation Bar -->
-  <div id="top-nav">
-    <img src="logo.png" alt="Asembl Logo">
-    <strong>Asembl</strong>
-  </div>
-  
-  <div id="map"></div>
-
-  <div class="info-box" id="stats"></div>
-  
-  <div id="toolbar">
-    <button id="drawSite">Draw Site Boundary</button>
-    <button id="drawRoads">Draw Roads</button>
-    <button id="fillHomes">Fill with Homes</button>
-    <button id="clearAll">Clear All</button>
-    <label for="rotationAngle">Rotation (degrees):</label>
-    <input type="number" id="rotationAngle" value="" placeholder="Auto">
-  </div>
-
-  <!-- Mapbox JS -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.min.js"></script>
-
-  <!-- App JS -->
-  <script src="main.js"></script>
-</body>
-</html>
+}
