@@ -1,72 +1,64 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Generative Masterplanner – Boundary, Access & Spine</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-
-  <!-- Mapbox CSS -->
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" rel="stylesheet" />
-
-  <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-
-    #toolbar {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 10px;
-      border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 10;
-    }
-    #stats {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      background: white;
-      padding: 10px;
-      border-radius: 6px;
-      font-size: 14px;
-      line-height: 1.4;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      z-index: 10;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Masterplanning Tool</title>
+    
+    <!-- Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css' rel='stylesheet' />
+    
+    <!-- Mapbox Draw -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.js'></script>
+    <link rel='stylesheet' href='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.3/mapbox-gl-draw.css' type='text/css' />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
-  <div id="map"></div>
+    <!-- Map Container -->
+    <div id="map"></div>
+    
+    <!-- Navigation Bar -->
+    <div class="navbar">
+        <div class="logo">MasterPlan Pro</div>
+    </div>
+    
+    <!-- Toolbox -->
+    <div class="toolbox">
+        <h3>Drawing Tools</h3>
+        <button class="tool-button" id="draw-boundary">Draw Site Boundary</button>
+        <button class="tool-button" id="draw-road">Draw Access Road</button>
+        <button class="tool-button" id="generate-plan">Generate Plan</button>
+    </div>
+    
+    <!-- Stats Box -->
+    <div class="stats-box">
+        <h3>Site Statistics</h3>
+        <div class="stat-item">
+            <span class="stat-label">Total Area:</span>
+            <span class="stat-value" id="total-area">0 ha</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Number of Homes:</span>
+            <span class="stat-value" id="home-count">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Density:</span>
+            <span class="stat-value" id="density">0 homes/ha</span>
+        </div>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div class="loading" id="loading">
+        <div>Processing...</div>
+    </div>
+    
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
 
-  <div id="toolbar">
-    <button id="drawSite">Draw Site Boundary</button>
-    <button id="drawAccess">Draw Access Road</button>
-    <button id="generate">Generate Plan</button>
-    <button id="clearAll">Clear All</button>
-    <label>House type:
-      <select id="houseType">
-        <option value="t1">Type 1</option>
-        <option value="t2">Type 2</option>
-        <option value="t3">Type 3</option>
-      </select>
-    </label>
-    <label>Front setback (m): <input id="frontSetback" type="number" value="5"></label>
-    <label>Side gap (m): <input id="sideGap" type="number" value="2"></label>
-    <label>Rotation (deg, optional): <input id="rotationAngle" type="number" placeholder="Auto"></label>
-  </div>
-
-  <div id="stats"></div>
-
-  <!-- Mapbox JS -->
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
-
-  <script type="module" src="main.js"></script>
+    <!-- Custom JavaScript -->
+    <script src="assets/js/main.js"></script>
 </body>
 </html>
