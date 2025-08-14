@@ -230,32 +230,61 @@ function generateHousesAlongRoads() {
     
     accessRoads.forEach(road => {
         const coords = road.geometry.coordinates;
-        const houseCount = Math.floor(coords.length / 2); // Houses along the road
         
-        for (let i = 0; i < houseCount; i++) {
-            const roadPoint = coords[Math.floor(i * coords.length / houseCount)];
+        // Calculate total road length and spacing
+        const houseSpacing = 0.0002; // Distance between houses (in degrees)
+        const roadOffset = 0.0001; // Distance from road centerline
+        
+        // Generate houses along both sides of the road
+        for (let i = 1; i < coords.length; i++) {
+            const start = coords[i-1];
+            const end = coords[i];
             
-            // Create house polygon (5m x 5m)
-            const houseSize = 0.00005; // Approximate size in degrees
-            const house = {
-                type: 'Feature',
-                geometry: {
-                    type: 'Polygon',
-                    coordinates: [[
-                        [roadPoint[0] - houseSize, roadPoint[1] - houseSize],
-                        [roadPoint[0] + houseSize, roadPoint[1] - houseSize],
-                        [roadPoint[0] + houseSize, roadPoint[1] + houseSize],
-                        [roadPoint[0] - houseSize, roadPoint[1] + houseSize],
-                        [roadPoint[0] - houseSize, roadPoint[1] - houseSize]
-                    ]]
-                },
-                properties: {
-                    type: 'house',
-                    id: houses.length + 1
-                }
-            };
+            // Calculate segment vector and perpendicular
+            const dx = end[0] - start[0];
+            const dy = end[1] - start[1];
+            const length = Math.sqrt(dx*dx + dy*dy);
             
-            houses.push(house);
+            // Perpendicular vector for offset (normalized)
+            const perpX = -dy / length * roadOffset;
+            const perpY = dx / length * roadOffset;
+            
+            // Number of houses along this segment
+            const housesInSegment = Math.floor(length / houseSpacing);
+            
+            for (let j = 0; j <= housesInSegment; j++) {
+                const t = j / Math.max(housesInSegment, 1);
+                const centerX = start[0] + t * dx;
+                const centerY = start[1] + t * dy;
+                
+                // Create houses on both sides of the road
+                [1, -1].forEach(side => {
+                    const houseX = centerX + perpX * side;
+                    const houseY = centerY + perpY * side;
+                    
+                    // Create house polygon (5m x 5m = approximately 0.00005 degrees)
+                    const houseSize = 0.00003;
+                    const house = {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: [[
+                                [houseX - houseSize, houseY - houseSize],
+                                [houseX + houseSize, houseY - houseSize],
+                                [houseX + houseSize, houseY + houseSize],
+                                [houseX - houseSize, houseY + houseSize],
+                                [houseX - houseSize, houseY - houseSize]
+                            ]]
+                        },
+                        properties: {
+                            type: 'house',
+                            id: houses.length + 1
+                        }
+                    };
+                    
+                    houses.push(house);
+                });
+            }
         }
     });
     
