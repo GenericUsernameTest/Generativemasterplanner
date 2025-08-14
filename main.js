@@ -224,65 +224,94 @@ function generatePlan() {
     }, 2000);
 }
 
-// Generate houses along access roads
+// Generate houses along access roads with proper spine alignment
 function generateHousesAlongRoads() {
     houses = []; // Clear existing houses
     
     accessRoads.forEach(road => {
         const coords = road.geometry.coordinates;
         
-        // Calculate total road length and spacing
-        const houseSpacing = 0.0002; // Distance between houses (in degrees)
-        const roadOffset = 0.0001; // Distance from road centerline
+        // Create the spine road (centerline) - this will be visible
+        const spineRoad = {
+            type: 'Feature',
+            geometry: {
+                type: 'LineString',
+                coordinates: coords
+            },
+            properties: {
+                type: 'spine'
+            }
+        };
         
-        // Generate houses along both sides of the road
+        // Add spine road to the roads source for visualization
+        const allRoads = [...accessRoads, spineRoad];
+        map.getSource('access-roads').setData({
+            type: 'FeatureCollection',
+            features: allRoads
+        });
+        
+        // Generate houses along the spine
+        const houseSpacing = 0.0001; // Closer spacing for more houses
+        const rowDepth = 0.00008; // How far back houses go from spine
+        const houseSize = 0.000025; // Smaller house size
+        
+        // Create houses along each segment of the spine
         for (let i = 1; i < coords.length; i++) {
             const start = coords[i-1];
             const end = coords[i];
             
-            // Calculate segment vector and perpendicular
+            // Calculate segment vector
             const dx = end[0] - start[0];
             const dy = end[1] - start[1];
-            const length = Math.sqrt(dx*dx + dy*dy);
+            const segmentLength = Math.sqrt(dx*dx + dy*dy);
             
-            // Perpendicular vector for offset (normalized)
-            const perpX = -dy / length * roadOffset;
-            const perpY = dx / length * roadOffset;
+            // Normalized direction vector
+            const dirX = dx / segmentLength;
+            const dirY = dy / segmentLength;
             
-            // Number of houses along this segment
-            const housesInSegment = Math.floor(length / houseSpacing);
+            // Perpendicular vector for house rows
+            const perpX = -dirY;
+            const perpY = dirX;
+            
+            // Number of house positions along this segment
+            const housesInSegment = Math.floor(segmentLength / houseSpacing);
             
             for (let j = 0; j <= housesInSegment; j++) {
                 const t = j / Math.max(housesInSegment, 1);
-                const centerX = start[0] + t * dx;
-                const centerY = start[1] + t * dy;
+                const spineX = start[0] + t * dx;
+                const spineY = start[1] + t * dy;
                 
-                // Create houses on both sides of the road
-                [1, -1].forEach(side => {
-                    const houseX = centerX + perpX * side;
-                    const houseY = centerY + perpY * side;
-                    
-                    // Create house polygon (5m x 5m = approximately 0.00005 degrees)
-                    const houseSize = 0.00003;
-                    const house = {
-                        type: 'Feature',
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: [[
-                                [houseX - houseSize, houseY - houseSize],
-                                [houseX + houseSize, houseY - houseSize],
-                                [houseX + houseSize, houseY + houseSize],
-                                [houseX - houseSize, houseY + houseSize],
-                                [houseX - houseSize, houseY - houseSize]
-                            ]]
-                        },
-                        properties: {
-                            type: 'house',
-                            id: houses.length + 1
-                        }
-                    };
-                    
-                    houses.push(house);
+                // Create houses on both sides of spine (multiple rows)
+                [-1, 1].forEach(side => {
+                    // Multiple rows of houses (2 rows on each side)
+                    [1, 2].forEach(row => {
+                        const offsetDistance = row * rowDepth;
+                        const houseX = spineX + perpX * side * offsetDistance;
+                        const houseY = spineY + perpY * side * offsetDistance;
+                        
+                        // Create house polygon
+                        const house = {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Polygon',
+                                coordinates: [[
+                                    [houseX - houseSize, houseY - houseSize],
+                                    [houseX + houseSize, houseY - houseSize],
+                                    [houseX + houseSize, houseY + houseSize],
+                                    [houseX - houseSize, houseY + houseSize],
+                                    [houseX - houseSize, houseY - houseSize]
+                                ]]
+                            },
+                            properties: {
+                                type: 'house',
+                                id: houses.length + 1,
+                                row: row,
+                                side: side
+                            }
+                        };
+                        
+                        houses.push(house);
+                    });
                 });
             }
         }
