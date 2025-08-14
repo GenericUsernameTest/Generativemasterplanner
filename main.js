@@ -73,14 +73,22 @@ map.on('load', function() {
         paint: { 'line-color': '#3498db', 'line-width': 2 }
     });
 
-    // Access roads as lines (not polygons)
+    // Access roads and spine roads
     map.addLayer({
         id: 'access-roads',
         type: 'line',
         source: 'access-roads',
         paint: { 
-            'line-color': '#95a5a6', 
-            'line-width': 8,
+            'line-color': [
+                'case',
+                ['==', ['get', 'type'], 'spine'], '#2c3e50', // Dark spine road
+                '#95a5a6' // Light access road outline
+            ],
+            'line-width': [
+                'case', 
+                ['==', ['get', 'type'], 'spine'], 3, // Thinner spine
+                8 // Thicker access road
+            ],
             'line-opacity': 0.8 
         }
     });
