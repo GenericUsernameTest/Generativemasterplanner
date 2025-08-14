@@ -1,11 +1,7 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-// Debug: Check token and style
-console.log('Token:', mapboxgl.accessToken);
-console.log('Attempting to load style: mapbox://styles/asembl/cme31yog7018101s81twu6g8n');
-
-// Initialize map with YOUR custom style
+// Clean initialization with your B&W style - no forcing or overrides
 const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
@@ -13,18 +9,15 @@ const map = new mapboxgl.Map({
     zoom: 15
 });
 
-// Add error handling for style loading
+// Simple error logging - no fallbacks or forcing
 map.on('error', function(e) {
     console.error('Map error:', e.error);
-    if (e.error.message.includes('style')) {
-        console.log('Custom style failed, falling back to streets');
-        map.setStyle('mapbox://styles/mapbox/streets-v12');
-        showNotification('Custom style failed, using fallback', 'error');
-    }
+    showNotification('Map error: ' + e.error.message, 'error');
 });
 
-map.on('styledata', function() {
-    console.log('Style loaded successfully:', map.getStyle().name);
+map.on('load', function() {
+    console.log('Map loaded with style');
+    showNotification('Map loaded!', 'success');
 });
 
 // Drawing tools
@@ -164,20 +157,46 @@ map.on('draw.create', function(e) {
         stats.totalArea = area;
         updateStats();
         showNotification('Site boundary created!', 'success');
-    } 
-    else if (currentTool === 'road') {
+        
+        // Force deactivate boundary tool
+        currentTool = null;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+        draw.changeMode('simple_select');
+        
+    } else if (currentTool === 'road') {
         accessRoads.push(feature);
         map.getSource('access-roads').setData({
             type: 'FeatureCollection',
             features: accessRoads
         });
         showNotification('Access road created!', 'success');
+        
+        // Force deactivate road tool
+        currentTool = null;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+        draw.changeMode('simple_select');
     }
-    
-    // Auto-deactivate tool after drawing
-    currentTool = null;
-    document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
-    draw.changeMode('simple_select');
+});
+
+// Also handle when user finishes drawing manually
+map.on('draw.modechange', function(e) {
+    if (e.mode === 'simple_select' && currentTool) {
+        // User manually finished drawing, deactivate tool
+        currentTool = null;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+        showNotification('Drawing completed');
+    }
+});
+
+// Handle double-click to finish polygon
+map.on('dblclick', function() {
+    if (currentTool) {
+        setTimeout(() => {
+            currentTool = null;
+            document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+            draw.changeMode('simple_select');
+        }, 100);
+    }
 });
 
 // Generate plan with visual feedback
