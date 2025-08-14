@@ -75,27 +75,26 @@ map.on('load', function() {
         paint: { 'line-color': '#3498db', 'line-width': 2 }
     });
 
-    // Access roads (8m wide) - SAME GRAY AS SPINE
+    // Access roads (8m wide) - POLYGON VERSION (no scaling)
     map.addLayer({
-        id: 'access-road-lines',
-        type: 'line',
+        id: 'access-road-polygons',
+        type: 'fill',
         source: 'access-roads',
-        filter: ['!=', ['get', 'type'], 'spine-road'],
+        filter: ['==', ['get', 'type'], 'access-road'],
         paint: { 
-            'line-color': '#7f8c8d', // Same gray as spine
-            'line-width': 20,
-            'line-opacity': 0.9 
+            'fill-color': '#7f8c8d',
+            'fill-opacity': 0.9 
         }
     });
 
-    // Spine roads (5m wide) - SAME GRAY AS ACCESS
+    // Spine roads (5m wide) - POLYGONS
     map.addLayer({
         id: 'spine-roads',
         type: 'fill',
         source: 'access-roads',
         filter: ['==', ['get', 'type'], 'spine-road'],
         paint: { 
-            'fill-color': '#7f8c8d', // Same gray as access road
+            'fill-color': '#7f8c8d',
             'fill-opacity': 1.0
         }
     });
@@ -253,6 +252,15 @@ function generateHousesAlongRoads() {
     
     accessRoads.forEach(road => {
         const coords = road.geometry.coordinates;
+        
+        // Convert access road to polygon for consistent scaling
+        const accessRoadPolygon = createSpineRoadPolygon(coords, 0.000072); // 8m width
+        
+        if (accessRoadPolygon) {
+            // Replace the original access road with polygon version
+            road.geometry = accessRoadPolygon;
+            road.properties = { type: 'access-road' };
+        }
         
         // Get END point of access road
         const accessEndPoint = coords[coords.length - 1];
