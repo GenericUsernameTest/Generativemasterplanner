@@ -88,15 +88,15 @@ map.on('load', function() {
         }
     });
 
-    // Spine roads (5m wide) - POLYGONS
+    // Spine roads (5m wide) - POLYGONS - MORE VISIBLE
     map.addLayer({
         id: 'spine-roads',
         type: 'fill',
         source: 'access-roads',
         filter: ['==', ['get', 'type'], 'spine-road'],
         paint: { 
-            'fill-color': '#7f8c8d',
-            'fill-opacity': 0.9
+            'fill-color': '#2c3e50', // Much darker color
+            'fill-opacity': 1.0 // Full opacity
         }
     });
 
@@ -258,12 +258,18 @@ function generateHousesAlongRoads() {
         // Create spine polygon
         const spinePolygon = createSpineRoadPolygon([spineStart, spineEnd], spineWidth);
         
+        console.log('Spine coordinates:', spineStart, spineEnd);
+        console.log('Spine polygon created:', spinePolygon);
+        
         if (spinePolygon) {
             spineRoads.push({
                 type: 'Feature',
                 geometry: spinePolygon,
                 properties: { type: 'spine-road' }
             });
+            console.log('Spine road added to spineRoads array');
+        } else {
+            console.log('ERROR: Spine polygon creation failed');
         }
         
         // Generate houses
@@ -312,6 +318,10 @@ function generateHousesAlongRoads() {
     });
     
     // Update map
+    console.log('Total roads (access + spine):', allRoads.length);
+    console.log('Spine roads count:', spineRoads.length);
+    console.log('All roads data:', allRoads);
+    
     const allRoads = [...accessRoads, ...spineRoads];
     map.getSource('access-roads').setData({
         type: 'FeatureCollection',
