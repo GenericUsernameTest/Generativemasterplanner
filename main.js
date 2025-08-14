@@ -73,23 +73,28 @@ map.on('load', function() {
         paint: { 'line-color': '#3498db', 'line-width': 2 }
     });
 
-    // Access roads and spine roads
+    // Access roads and spine roads with proper styling
     map.addLayer({
         id: 'access-roads',
+        type: 'fill',
+        source: 'access-roads',
+        filter: ['==', ['get', 'type'], 'spine-road'],
+        paint: { 
+            'fill-color': '#95a5a6', // Gray spine road
+            'fill-opacity': 0.8
+        }
+    });
+    
+    // Original access road lines (thinner, for context)
+    map.addLayer({
+        id: 'access-road-lines',
         type: 'line',
         source: 'access-roads',
+        filter: ['!=', ['get', 'type'], 'spine-road'],
         paint: { 
-            'line-color': [
-                'case',
-                ['==', ['get', 'type'], 'spine'], '#2c3e50', // Dark spine road
-                '#95a5a6' // Light access road outline
-            ],
-            'line-width': [
-                'case', 
-                ['==', ['get', 'type'], 'spine'], 3, // Thinner spine
-                8 // Thicker access road
-            ],
-            'line-opacity': 0.8 
+            'line-color': '#7f8c8d',
+            'line-width': 2,
+            'line-opacity': 0.5 
         }
     });
 
@@ -235,94 +240,111 @@ function generatePlan() {
 // Generate houses along access roads with proper spine alignment
 function generateHousesAlongRoads() {
     houses = []; // Clear existing houses
+    let spineRoads = []; // Array to hold spine roads
+    
+    if (!siteBoundary) {
+        console.log('No site boundary found');
+        return;
+    }
     
     accessRoads.forEach(road => {
         const coords = road.geometry.coordinates;
         
-        // Create the spine road (centerline) - this will be visible
-        const spineRoad = {
-            type: 'Feature',
-            geometry: {
-                type: 'LineString',
-                coordinates: coords
-            },
-            properties: {
-                type: 'spine'
-            }
-        };
+        // Find where the access road connects to the site boundary
+        const boundaryCoords = siteBoundary.geometry.coordinates[0];
+        const connectionPoint = findBoundaryConnection(coords, boundaryCoords);
         
-        // Add spine road to the roads source for visualization
-        const allRoads = [...accessRoads, spineRoad];
-        map.getSource('access-roads').setData({
-            type: 'FeatureCollection',
-            features: allRoads
+        if (!connectionPoint) {
+            console.log('Could not find boundary connection');
+            return;
+        }
+        
+        // Find the closest boundary edge to run spine parallel to
+        const closestEdge = findClosestBoundaryEdge(connectionPoint.point, boundaryCoords);
+        
+        // Create spine road parallel to the closest boundary edge
+        const spineLength = 0.0008; // Length of spine road
+        const spineStart = [
+            connectionPoint.point[0] + closestEdge.direction[0] * 0.0001,
+            connectionPoint.point[1] + closestEdge.direction[1] * 0.0001
+        ];
+        const spineEnd = [
+            spineStart[0] + closestEdge.direction[0] * spineLength,
+            spineStart[1] + closestEdge.direction[1] * spineLength
+        ];
+        
+        // Create spine road polygon
+        const spineWidth = 0.000040;
+        const spineCoords = [spineStart, spineEnd];
+        const spinePolygon = createSpineRoadPolygon(spineCoords, spineWidth);
+        
+        spineRoads.push({
+            type: 'Feature',
+            geometry: spinePolygon,
+            properties: {
+                type: 'spine-road'
+            }
         });
         
         // Generate houses along the spine
-        const houseSpacing = 0.0001; // Closer spacing for more houses
-        const rowDepth = 0.00008; // How far back houses go from spine
-        const houseSize = 0.000025; // Smaller house size
+        const houseSpacing = 0.00008; // Distance between houses along spine
+        const rowOffset = 0.00006; // Distance from spine edge to houses
+        const houseSize = 0.000025; // Size of each house
         
-        // Create houses along each segment of the spine
-        for (let i = 1; i < coords.length; i++) {
-            const start = coords[i-1];
-            const end = coords[i];
+        // Calculate perpendicular direction for house rows
+        const spineDirection = [
+            spineEnd[0] - spineStart[0],
+            spineEnd[1] - spineStart[1]
+        ];
+        const spineLength_calc = Math.sqrt(spineDirection[0]**2 + spineDirection[1]**2);
+        const perpDirection = [
+            -spineDirection[1] / spineLength_calc,
+            spineDirection[0] / spineLength_calc
+        ];
+        
+        // Number of houses along spine
+        const numHouses = Math.floor(spineLength / houseSpacing);
+        
+        for (let i = 0; i <= numHouses; i++) {
+            const t = i / Math.max(numHouses, 1);
+            const spineX = spineStart[0] + t * spineDirection[0];
+            const spineY = spineStart[1] + t * spineDirection[1];
             
-            // Calculate segment vector
-            const dx = end[0] - start[0];
-            const dy = end[1] - start[1];
-            const segmentLength = Math.sqrt(dx*dx + dy*dy);
-            
-            // Normalized direction vector
-            const dirX = dx / segmentLength;
-            const dirY = dy / segmentLength;
-            
-            // Perpendicular vector for house rows
-            const perpX = -dirY;
-            const perpY = dirX;
-            
-            // Number of house positions along this segment
-            const housesInSegment = Math.floor(segmentLength / houseSpacing);
-            
-            for (let j = 0; j <= housesInSegment; j++) {
-                const t = j / Math.max(housesInSegment, 1);
-                const spineX = start[0] + t * dx;
-                const spineY = start[1] + t * dy;
+            // Create houses on both sides of spine
+            [-1, 1].forEach(side => {
+                const houseX = spineX + perpDirection[0] * side * (spineWidth/2 + rowOffset);
+                const houseY = spineY + perpDirection[1] * side * (spineWidth/2 + rowOffset);
                 
-                // Create houses on both sides of spine (multiple rows)
-                [-1, 1].forEach(side => {
-                    // Multiple rows of houses (2 rows on each side)
-                    [1, 2].forEach(row => {
-                        const offsetDistance = row * rowDepth;
-                        const houseX = spineX + perpX * side * offsetDistance;
-                        const houseY = spineY + perpY * side * offsetDistance;
-                        
-                        // Create house polygon
-                        const house = {
-                            type: 'Feature',
-                            geometry: {
-                                type: 'Polygon',
-                                coordinates: [[
-                                    [houseX - houseSize, houseY - houseSize],
-                                    [houseX + houseSize, houseY - houseSize],
-                                    [houseX + houseSize, houseY + houseSize],
-                                    [houseX - houseSize, houseY + houseSize],
-                                    [houseX - houseSize, houseY - houseSize]
-                                ]]
-                            },
-                            properties: {
-                                type: 'house',
-                                id: houses.length + 1,
-                                row: row,
-                                side: side
-                            }
-                        };
-                        
-                        houses.push(house);
-                    });
-                });
-            }
+                // Create house polygon
+                const house = {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [[
+                            [houseX - houseSize, houseY - houseSize],
+                            [houseX + houseSize, houseY - houseSize],
+                            [houseX + houseSize, houseY + houseSize],
+                            [houseX - houseSize, houseY + houseSize],
+                            [houseX - houseSize, houseY - houseSize]
+                        ]]
+                    },
+                    properties: {
+                        type: 'house',
+                        id: houses.length + 1,
+                        side: side
+                    }
+                };
+                
+                houses.push(house);
+            });
         }
+    });
+    
+    // Update access roads to include spine roads
+    const allRoads = [...accessRoads, ...spineRoads];
+    map.getSource('access-roads').setData({
+        type: 'FeatureCollection',
+        features: allRoads
     });
     
     // Update houses on map
@@ -332,6 +354,132 @@ function generateHousesAlongRoads() {
     });
     
     stats.homeCount = houses.length;
+}
+
+// Find where access road connects to site boundary
+function findBoundaryConnection(roadCoords, boundaryCoords) {
+    let closestDistance = Infinity;
+    let closestPoint = null;
+    let closestRoadPoint = null;
+    
+    // Check each road point against boundary
+    roadCoords.forEach(roadPoint => {
+        // Check distance to each boundary segment
+        for (let i = 0; i < boundaryCoords.length - 1; i++) {
+            const boundaryStart = boundaryCoords[i];
+            const boundaryEnd = boundaryCoords[i + 1];
+            
+            const distance = pointToLineDistance(roadPoint, boundaryStart, boundaryEnd);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestPoint = roadPoint;
+                closestRoadPoint = roadPoint;
+            }
+        }
+    });
+    
+    return closestPoint ? { point: closestPoint, distance: closestDistance } : null;
+}
+
+// Find the closest boundary edge to a point
+function findClosestBoundaryEdge(point, boundaryCoords) {
+    let closestDistance = Infinity;
+    let closestEdge = null;
+    
+    for (let i = 0; i < boundaryCoords.length - 1; i++) {
+        const start = boundaryCoords[i];
+        const end = boundaryCoords[i + 1];
+        
+        const distance = pointToLineDistance(point, start, end);
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            
+            // Calculate edge direction (normalized)
+            const dx = end[0] - start[0];
+            const dy = end[1] - start[1];
+            const length = Math.sqrt(dx*dx + dy*dy);
+            
+            closestEdge = {
+                start: start,
+                end: end,
+                direction: [dx/length, dy/length],
+                distance: distance
+            };
+        }
+    }
+    
+    return closestEdge;
+}
+
+// Calculate distance from point to line segment
+function pointToLineDistance(point, lineStart, lineEnd) {
+    const dx = lineEnd[0] - lineStart[0];
+    const dy = lineEnd[1] - lineStart[1];
+    const length = Math.sqrt(dx*dx + dy*dy);
+    
+    if (length === 0) return Math.sqrt((point[0] - lineStart[0])**2 + (point[1] - lineStart[1])**2);
+    
+    const t = Math.max(0, Math.min(1, ((point[0] - lineStart[0]) * dx + (point[1] - lineStart[1]) * dy) / (length * length)));
+    const projection = [lineStart[0] + t * dx, lineStart[1] + t * dy];
+    
+    return Math.sqrt((point[0] - projection[0])**2 + (point[1] - projection[1])**2);
+}
+
+// Helper function to create spine road polygon with rounded ends
+function createSpineRoadPolygon(coords, width) {
+    if (coords.length < 2) return null;
+    
+    const halfWidth = width / 2;
+    const leftSide = [];
+    const rightSide = [];
+    
+    // Create parallel lines on both sides of the centerline
+    for (let i = 0; i < coords.length; i++) {
+        let perpX, perpY;
+        
+        if (i === 0) {
+            // First point - use direction to next point
+            const dx = coords[1][0] - coords[0][0];
+            const dy = coords[1][1] - coords[0][1];
+            const length = Math.sqrt(dx*dx + dy*dy);
+            perpX = -dy / length * halfWidth;
+            perpY = dx / length * halfWidth;
+        } else if (i === coords.length - 1) {
+            // Last point - use direction from previous point
+            const dx = coords[i][0] - coords[i-1][0];
+            const dy = coords[i][1] - coords[i-1][1];
+            const length = Math.sqrt(dx*dx + dy*dy);
+            perpX = -dy / length * halfWidth;
+            perpY = dx / length * halfWidth;
+        } else {
+            // Middle points - average of adjacent segments
+            const dx1 = coords[i][0] - coords[i-1][0];
+            const dy1 = coords[i][1] - coords[i-1][1];
+            const dx2 = coords[i+1][0] - coords[i][0];
+            const dy2 = coords[i+1][1] - coords[i][1];
+            
+            const len1 = Math.sqrt(dx1*dx1 + dy1*dy1);
+            const len2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+            
+            const avgDx = (dx1/len1 + dx2/len2) / 2;
+            const avgDy = (dy1/len1 + dy2/len2) / 2;
+            const avgLen = Math.sqrt(avgDx*avgDx + avgDy*avgDy);
+            
+            perpX = -avgDy / avgLen * halfWidth;
+            perpY = avgDx / avgLen * halfWidth;
+        }
+        
+        leftSide.push([coords[i][0] + perpX, coords[i][1] + perpY]);
+        rightSide.push([coords[i][0] - perpX, coords[i][1] - perpY]);
+    }
+    
+    // Create closed polygon: left side + reversed right side
+    const polygon = [...leftSide, ...rightSide.reverse(), leftSide[0]];
+    
+    return {
+        type: 'Polygon',
+        coordinates: [polygon]
+    };
 }
 
 // Clear all function
