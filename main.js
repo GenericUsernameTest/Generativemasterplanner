@@ -5,8 +5,7 @@ mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpb
 const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-    center: [-0.1278, 51.5074],
-    zoom: 15
+
 });
 
 // Simple error logging - no fallbacks or forcing
