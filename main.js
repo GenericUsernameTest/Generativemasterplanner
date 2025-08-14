@@ -99,14 +99,14 @@ map.on('load', function() {
         }
     });
 
-    // Houses layer
+    // Houses layer with CORRECT HEIGHT
     map.addLayer({
         id: 'houses',
         type: 'fill-extrusion',
         source: 'houses',
         paint: {
             'fill-extrusion-color': '#e74c3c',
-            'fill-extrusion-height': 4,
+            'fill-extrusion-height': ['get', 'height'], // Use stored height property
             'fill-extrusion-opacity': 0.8
         }
     });
@@ -311,11 +311,12 @@ function generateHousesAlongRoads() {
             });
         }
         
-        // Generate houses
+        // Generate houses with CORRECT DIMENSIONS
         const houseSpacing = 0.00005;
         const rowOffset = 0.00008;
-        const houseWidth = 0.000020;
-        const houseLength = 0.000030;
+        const houseWidth = 0.000045;  // 5m width
+        const houseLength = 0.000045; // 5m length (square footprint)
+        const houseHeight = 4; // 4m height (for 3D rendering)
         
         const spineDirection = [spineEnd[0] - spineStart[0], spineEnd[1] - spineStart[1]];
         const totalSpineLength = Math.sqrt(spineDirection[0]**2 + spineDirection[1]**2);
@@ -348,7 +349,11 @@ function generateHousesAlongRoads() {
                         houses.push({
                             type: 'Feature',
                             geometry: house,
-                            properties: { type: 'house', id: houses.length + 1 }
+                            properties: { 
+                                type: 'house', 
+                                id: houses.length + 1,
+                                height: houseHeight // Store height for 3D rendering
+                            }
                         });
                     }
                 }
@@ -584,8 +589,9 @@ function updateStats() {
     document.getElementById('total-area').textContent = stats.totalArea + ' ha';
     document.getElementById('home-count').textContent = stats.homeCount;
     
+    // CORRECT DENSITY: homes per total site area (not per hectare)
     if (stats.totalArea > 0) {
-        stats.density = Math.round((stats.homeCount / stats.totalArea) * 10) / 10;
+        stats.density = Math.round(stats.homeCount / stats.totalArea); // Homes per hectare
     } else {
         stats.density = 0;
     }
