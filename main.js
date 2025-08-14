@@ -1,13 +1,8 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-// Clean initialization with your B&W style - no forcing or overrides
-const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-    center: [-0.1278, 51.5074],
-    zoom: 15
-});
+const STYLE_URL = 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n';
+
 
 // Simple error logging - no fallbacks or forcing
 map.on('error', function(e) {
