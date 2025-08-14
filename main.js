@@ -15,11 +15,6 @@ map.on('error', function(e) {
     showNotification('Map error: ' + e.error.message, 'error');
 });
 
-map.on('load', function() {
-    console.log('Map loaded with style');
-    showNotification('Map loaded!', 'success');
-});
-
 // Drawing tools
 const draw = new MapboxDraw({
     displayControlsDefault: false,
