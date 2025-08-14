@@ -244,7 +244,10 @@ function generateHousesAlongRoads() {
     houses = [];
     let spineRoads = [];
     
-    if (!siteBoundary) return;
+    if (!siteBoundary) {
+        console.log('No site boundary found');
+        return;
+    }
     
     const boundaryCoords = siteBoundary.geometry.coordinates[0];
     
@@ -291,18 +294,12 @@ function generateHousesAlongRoads() {
         // Create spine polygon
         const spinePolygon = createSpineRoadPolygon([spineStart, spineEnd], spineWidth);
         
-        console.log('Spine coordinates:', spineStart, spineEnd);
-        console.log('Spine polygon created:', spinePolygon);
-        
         if (spinePolygon) {
             spineRoads.push({
                 type: 'Feature',
                 geometry: spinePolygon,
                 properties: { type: 'spine-road' }
             });
-            console.log('Spine road added to spineRoads array');
-        } else {
-            console.log('ERROR: Spine polygon creation failed');
         }
         
         // Generate houses
@@ -350,11 +347,7 @@ function generateHousesAlongRoads() {
         }
     });
     
-    // Update map
-    console.log('Total roads (access + spine):', allRoads.length);
-    console.log('Spine roads count:', spineRoads.length);
-    console.log('All roads data:', allRoads);
-    
+    // Update map - FIXED
     const allRoads = [...accessRoads, ...spineRoads];
     map.getSource('access-roads').setData({
         type: 'FeatureCollection',
@@ -367,6 +360,7 @@ function generateHousesAlongRoads() {
     });
     
     stats.homeCount = houses.length;
+    console.log('Generated', houses.length, 'houses and', spineRoads.length, 'spine roads');
 }
 
 // Helper functions
