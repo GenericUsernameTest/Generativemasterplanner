@@ -75,28 +75,28 @@ map.on('load', function() {
         paint: { 'line-color': '#3498db', 'line-width': 2 }
     });
 
-    // Access roads (8m wide) - LINES
+    // Access roads (8m wide) - SAME GRAY AS SPINE
     map.addLayer({
         id: 'access-road-lines',
         type: 'line',
         source: 'access-roads',
         filter: ['!=', ['get', 'type'], 'spine-road'],
         paint: { 
-            'line-color': '#95a5a6',
+            'line-color': '#7f8c8d', // Same gray as spine
             'line-width': 20,
-            'line-opacity': 0.8 
+            'line-opacity': 0.9 
         }
     });
 
-    // Spine roads (5m wide) - POLYGONS - MORE VISIBLE
+    // Spine roads (5m wide) - SAME GRAY AS ACCESS
     map.addLayer({
         id: 'spine-roads',
         type: 'fill',
         source: 'access-roads',
         filter: ['==', ['get', 'type'], 'spine-road'],
         paint: { 
-            'fill-color': '#2c3e50', // Much darker color
-            'fill-opacity': 1.0 // Full opacity
+            'fill-color': '#7f8c8d', // Same gray as access road
+            'fill-opacity': 1.0
         }
     });
 
@@ -263,24 +263,25 @@ function generateHousesAlongRoads() {
         const closestEdge = findClosestBoundaryEdge(accessEndPoint, boundaryCoords);
         if (!closestEdge) return;
         
-        // Create spine road
+        // Create spine road with INSET BUFFER
         const spineWidth = 0.000045; // 5m
-        const buffer = 0.000020;
+        const boundaryBuffer = 0.000050; // INSET buffer from boundary
         
         const leftLength = calculateSpineLengthInDirection(
             accessEndPoint, 
             [-closestEdge.direction[0], -closestEdge.direction[1]],
             boundaryCoords, 
-            buffer
+            boundaryBuffer
         );
         
         const rightLength = calculateSpineLengthInDirection(
             accessEndPoint, 
             closestEdge.direction, 
             boundaryCoords, 
-            buffer
+            boundaryBuffer
         );
         
+        // Create spine with inset from boundaries
         const spineStart = [
             accessEndPoint[0] - closestEdge.direction[0] * leftLength,
             accessEndPoint[1] - closestEdge.direction[1] * leftLength
@@ -413,23 +414,31 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 }
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
+    // Create perfect rectangle with 90-degree corners
     const halfWidth = width / 2;
     const halfLength = length / 2;
     
+    // Define corners as perfect rectangle (before rotation)
     const corners = [
-        [-halfLength, -halfWidth],
-        [halfLength, -halfWidth],
-        [halfLength, halfWidth],
-        [-halfLength, halfWidth],
-        [-halfLength, -halfWidth]
+        [-halfLength, -halfWidth], // Bottom left
+        [halfLength, -halfWidth],  // Bottom right (90° from previous)
+        [halfLength, halfWidth],   // Top right (90° from previous)
+        [-halfLength, halfWidth],  // Top left (90° from previous)
+        [-halfLength, -halfWidth]  // Close polygon (back to start)
     ];
     
+    // Apply rotation while maintaining 90-degree angles
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    
     const rotatedCorners = corners.map(([x, y]) => {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
+        // Precise rotation matrix for maintaining right angles
         const rotatedX = x * cos - y * sin;
         const rotatedY = x * sin + y * cos;
-        return [centerX + rotatedX, centerY + rotatedY];
+        return [
+            centerX + rotatedX,
+            centerY + rotatedY
+        ];
     });
     
     return {
