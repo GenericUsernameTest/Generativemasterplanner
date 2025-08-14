@@ -447,3 +447,110 @@ function createSpineRoadPolygon(coords, width) {
     const polygon = [...leftSide, ...rightSide.reverse(), leftSide[0]];
     
     return {
+        type: 'Polygon',
+        coordinates: [polygon]
+    };
+}
+
+function isPointInPolygon(point, polygon) {
+    const [x, y] = point;
+    let inside = false;
+    
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const [xi, yi] = polygon[i];
+        const [xj, yj] = polygon[j];
+        
+        if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+            inside = !inside;
+        }
+    }
+    
+    return inside;
+}
+
+function isPointOnAccessRoad(point, roadCoords, buffer) {
+    for (let i = 1; i < roadCoords.length; i++) {
+        const distance = pointToLineDistance(point, roadCoords[i-1], roadCoords[i]);
+        if (distance < buffer) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function pointToLineDistance(point, lineStart, lineEnd) {
+    const dx = lineEnd[0] - lineStart[0];
+    const dy = lineEnd[1] - lineStart[1];
+    const length = Math.sqrt(dx*dx + dy*dy);
+    
+    if (length === 0) return Math.sqrt((point[0] - lineStart[0])**2 + (point[1] - lineStart[1])**2);
+    
+    const t = Math.max(0, Math.min(1, ((point[0] - lineStart[0]) * dx + (point[1] - lineStart[1]) * dy) / (length * length)));
+    const projection = [lineStart[0] + t * dx, lineStart[1] + t * dy];
+    
+    return Math.sqrt((point[0] - projection[0])**2 + (point[1] - projection[1])**2);
+}
+
+function clearAll() {
+    siteBoundary = null;
+    accessRoads = [];
+    houses = [];
+    stats = { totalArea: 0, homeCount: 0, density: 0 };
+    
+    map.getSource('site-boundary').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('access-roads').setData({ type: 'FeatureCollection', features: [] });
+    map.getSource('houses').setData({ type: 'FeatureCollection', features: [] });
+    
+    draw.deleteAll();
+    
+    currentTool = null;
+    document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+    draw.changeMode('simple_select');
+    
+    updateStats();
+    showNotification('All cleared!', 'success');
+}
+
+function calculateArea(coordinates) {
+    let area = 0;
+    const numPoints = coordinates.length - 1;
+    
+    for (let i = 0; i < numPoints; i++) {
+        const j = (i + 1) % numPoints;
+        area += coordinates[i][0] * coordinates[j][1];
+        area -= coordinates[j][0] * coordinates[i][1];
+    }
+    
+    area = Math.abs(area) / 2;
+    const hectares = area * 12100;
+    return Math.round(hectares * 100) / 100;
+}
+
+function updateStats() {
+    document.getElementById('total-area').textContent = stats.totalArea + ' ha';
+    document.getElementById('home-count').textContent = stats.homeCount;
+    
+    if (stats.totalArea > 0) {
+        stats.density = Math.round((stats.homeCount / stats.totalArea) * 10) / 10;
+    } else {
+        stats.density = 0;
+    }
+    
+    document.getElementById('density').textContent = stats.density + ' homes/ha';
+}
+
+function showNotification(message, type) {
+    const notification = document.getElementById('notification');
+    notification.textContent = message;
+    notification.className = 'notification show ' + (type || 'info');
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+    }, 3000);
+}
+
+function showLoading(show) {
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
+}
+
+updateStats();
