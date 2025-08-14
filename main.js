@@ -177,10 +177,43 @@ map.on('draw.create', function(e) {
         showNotification('Access road created!', 'success');
     }
     
-    // Deactivate tool
+    // FORCE deactivate tool - multiple methods
     currentTool = null;
     document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
-    draw.changeMode('simple_select');
+    
+    // Force exit drawing mode
+    setTimeout(() => {
+        draw.changeMode('simple_select');
+    }, 100);
+});
+
+// Additional escape handlers
+map.on('draw.modechange', function(e) {
+    if (e.mode === 'simple_select' && currentTool) {
+        currentTool = null;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+        showNotification('Drawing completed');
+    }
+});
+
+// Handle escape key and double-click
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && currentTool) {
+        currentTool = null;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+        draw.changeMode('simple_select');
+        showNotification('Drawing cancelled');
+    }
+});
+
+map.on('dblclick', function() {
+    if (currentTool) {
+        setTimeout(() => {
+            currentTool = null;
+            document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+            draw.changeMode('simple_select');
+        }, 200);
+    }
 });
 
 // Generate plan
