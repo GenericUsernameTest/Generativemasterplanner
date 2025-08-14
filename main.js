@@ -1,12 +1,30 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
+// Debug: Check token and style
+console.log('Token:', mapboxgl.accessToken);
+console.log('Attempting to load style: mapbox://styles/asembl/cme31yog7018101s81twu6g8n');
+
 // Initialize map with YOUR custom style
 const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
     center: [-0.1278, 51.5074],
     zoom: 15
+});
+
+// Add error handling for style loading
+map.on('error', function(e) {
+    console.error('Map error:', e.error);
+    if (e.error.message.includes('style')) {
+        console.log('Custom style failed, falling back to streets');
+        map.setStyle('mapbox://styles/mapbox/streets-v12');
+        showNotification('Custom style failed, using fallback', 'error');
+    }
+});
+
+map.on('styledata', function() {
+    console.log('Style loaded successfully:', map.getStyle().name);
 });
 
 // Drawing tools
