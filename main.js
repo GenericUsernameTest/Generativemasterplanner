@@ -235,4 +235,109 @@ function generatePlan() {
     // Simulate processing time
     setTimeout(() => {
         // TODO: Implement comprehensive plan generation
-        // This would include
+        // This would include:
+        // - Optimizing house placement
+        // - Generating infrastructure
+        // - Creating detailed layouts
+        
+        showLoading(false);
+        showNotification('Plan generated successfully!', 'success');
+        
+        // Update all visualizations
+        updateAllLayers();
+    }, 2000);
+}
+
+// Utility functions
+function calculatePolygonArea(coordinates) {
+    // Simple area calculation for polygon (in square meters, converted to hectares)
+    let area = 0;
+    const numPoints = coordinates.length - 1; // Last point is same as first
+    
+    for (let i = 0; i < numPoints; i++) {
+        const j = (i + 1) % numPoints;
+        area += coordinates[i][0] * coordinates[j][1];
+        area -= coordinates[j][0] * coordinates[i][1];
+    }
+    
+    area = Math.abs(area) / 2;
+    
+    // Convert from degrees to approximate hectares (rough conversion)
+    // This is a simplified calculation - in production, use proper projection
+    const hectares = area * 12100; // Rough conversion factor
+    return Math.round(hectares * 100) / 100;
+}
+
+function updateStats() {
+    document.getElementById('total-area').textContent = `${stats.totalArea} ha`;
+    document.getElementById('home-count').textContent = stats.homeCount;
+    
+    if (stats.totalArea > 0) {
+        stats.density = Math.round((stats.homeCount / stats.totalArea) * 10) / 10;
+    } else {
+        stats.density = 0;
+    }
+    
+    document.getElementById('density').textContent = `${stats.density} homes/ha`;
+}
+
+function updateAllLayers() {
+    // Update all map layers with current data
+    map.getSource('site-boundary').setData({
+        type: 'FeatureCollection',
+        features: siteBoundary ? [siteBoundary] : []
+    });
+
+    map.getSource('access-roads').setData({
+        type: 'FeatureCollection',
+        features: accessRoads
+    });
+
+    map.getSource('houses').setData({
+        type: 'FeatureCollection',
+        features: houses
+    });
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.getElementById('notification');
+    notification.textContent = message;
+    notification.className = `notification show ${type}`;
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+    }, 3000);
+}
+
+function showLoading(show) {
+    const loading = document.getElementById('loading');
+    loading.style.display = show ? 'block' : 'none';
+}
+
+// TODO: Implement these complex functions
+function generateSpineRoad(roadPolygon) {
+    // PLACEHOLDER: Generate spine road aligned to closest boundary point
+    // This would:
+    // 1. Find the center line of the road polygon
+    // 2. Find the closest point on the site boundary
+    // 3. Align the spine to connect to that point
+    // 4. Return spine road geometry
+    console.log('generateSpineRoad - TO BE IMPLEMENTED');
+}
+
+function generateHousesAlongSpine(spineRoad) {
+    // PLACEHOLDER: Generate houses along the spine road
+    // This would:
+    // 1. Calculate placement points along spine at regular intervals
+    // 2. Account for house dimensions and spacing
+    // 3. Generate house polygons at each placement point
+    // 4. Update houses array and stats
+    console.log('generateHousesAlongSpine - TO BE IMPLEMENTED');
+    
+    // For now, simulate some houses being added
+    stats.homeCount = Math.floor(Math.random() * 20) + 5;
+    updateStats();
+}
+
+// Initialize stats on page load
+updateStats();
