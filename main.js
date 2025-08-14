@@ -162,11 +162,13 @@ map.on('draw.create', function(e) {
             features: [feature]
         });
         
-        // Calculate TOTAL boundary area (not just developed area)
-        const area = calculateArea(feature.geometry.coordinates[0]);
-        stats.totalArea = area;
+        // Calculate and STORE the total boundary area
+        const boundaryArea = calculateArea(feature.geometry.coordinates[0]);
+        stats.totalArea = boundaryArea;
+        
+        console.log('Boundary area calculated:', boundaryArea, 'ha');
         updateStats();
-        showNotification('Site boundary created!', 'success');
+        showNotification('Site boundary created! Area: ' + boundaryArea + ' ha', 'success');
         
     } else if (currentTool === 'road') {
         accessRoads.push(feature);
@@ -177,11 +179,10 @@ map.on('draw.create', function(e) {
         showNotification('Access road created!', 'success');
     }
     
-    // FORCE deactivate tool - multiple methods
+    // FORCE deactivate tool
     currentTool = null;
     document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
     
-    // Force exit drawing mode
     setTimeout(() => {
         draw.changeMode('simple_select');
     }, 100);
@@ -594,8 +595,11 @@ function calculateArea(coordinates) {
 }
 
 function updateStats() {
-    // Total Area is ALWAYS the full boundary area (set when boundary is drawn)
-    document.getElementById('total-area').textContent = stats.totalArea + ' ha';
+    console.log('Updating stats - Total Area:', stats.totalArea, 'Home Count:', stats.homeCount);
+    
+    // Ensure area is displayed correctly
+    const displayArea = stats.totalArea || 0;
+    document.getElementById('total-area').textContent = displayArea + ' ha';
     document.getElementById('home-count').textContent = stats.homeCount;
     
     // Density: homes per hectare of TOTAL site area
