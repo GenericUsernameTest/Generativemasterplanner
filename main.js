@@ -312,8 +312,8 @@ function generateHousesAlongRoads() {
             });
         }
         
-        // Generate houses with CORRECT DIMENSIONS
-        const houseSpacing = 0.00005;
+        // Generate houses with 2M SPACING
+        const houseSpacing = 0.000063; // 2m spacing between houses (increased)
         const rowOffset = 0.00008;
         const houseWidth = 0.000045;  // 5m width
         const houseLength = 0.000045; // 5m length (square footprint)
