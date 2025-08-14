@@ -40,8 +40,10 @@ let accessRoads = [];
 let houses = [];
 let stats = { totalArea: 0, homeCount: 0, density: 0 };
 
-// Map load event
 map.on('load', function() {
+    console.log('Map loaded with style');
+    showNotification('Map loaded with custom style!', 'success');
+
     // Add sources for features
     map.addSource('site-boundary', {
         type: 'geojson',
@@ -73,19 +75,19 @@ map.on('load', function() {
         paint: { 'line-color': '#3498db', 'line-width': 2 }
     });
 
-    // Access roads (8m wide) - FIXED WIDTH
+    // Access roads (8m wide)
     map.addLayer({
         id: 'access-road-lines',
         type: 'line',
         source: 'access-roads',
         filter: ['!=', ['get', 'type'], 'spine-road'],
         paint: { 
-            'line-color': '#95a5a6', // Light gray for access road
-            'line-width': 20, // 8m = roughly 20px at this zoom
+            'line-color': '#95a5a6',
+            'line-width': 20,
             'line-opacity': 0.8 
         }
     });
-    
+
     // Spine roads (5m wide)
     map.addLayer({
         id: 'access-roads',
@@ -93,7 +95,7 @@ map.on('load', function() {
         source: 'access-roads',
         filter: ['==', ['get', 'type'], 'spine-road'],
         paint: { 
-            'fill-color': '#7f8c8d', // Darker gray for spine road (5m)
+            'fill-color': '#7f8c8d',
             'fill-opacity': 0.8
         }
     });
@@ -109,8 +111,6 @@ map.on('load', function() {
             'fill-extrusion-opacity': 0.8
         }
     });
-
-    showNotification('Map loaded with custom style!', 'success');
 });
 
 // Button event listeners
