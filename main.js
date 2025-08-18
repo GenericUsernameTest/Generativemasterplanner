@@ -91,7 +91,7 @@ map.on('load', function() {
         filter: ['==', ['get', 'type'], 'access-road'],
         paint: {
             'fill-color': '#7f8c8d',
-            'fill-opacity': 0.9
+            'fill-opacity': 1.0
         }
     });
 
@@ -113,7 +113,7 @@ map.on('load', function() {
         paint: {
             'fill-extrusion-color': '#e74c3c',
             'fill-extrusion-height': ['get', 'height'],
-            'fill-extrusion-opacity': 0.8
+            'fill-extrusion-opacity': 1.0
         }
     });
 });
