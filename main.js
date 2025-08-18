@@ -167,31 +167,21 @@ map.on('draw.create', function(e) {
             type: 'FeatureCollection',
             features: [feature]
         });
-        
-        // Calculate and STORE the total boundary area
+
         const boundaryArea = calculateArea(feature.geometry.coordinates[0]);
         stats.totalArea = boundaryArea;
-        
         console.log('Boundary area calculated:', boundaryArea, 'ha');
         updateStats();
         showNotification('Site boundary created! Area: ' + boundaryArea + ' ha', 'success');
+
+        // FORCE deactivate tool
+        currentTool = null;
+        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
         
-    } else if (currentTool === 'road') {
-        accessRoads.push(feature);
-        map.getSource('access-roads').setData({
-            type: 'FeatureCollection',
-            features: accessRoads
-        });
-        showNotification('Access road created!', 'success');
+        setTimeout(() => {
+            draw.changeMode('simple_select');
+        }, 100);
     }
-    
-    // FORCE deactivate tool
-    currentTool = null;
-    document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
-    
-    setTimeout(() => {
-        draw.changeMode('simple_select');
-    }, 100);
 });
 
 // Additional escape handlers
@@ -452,9 +442,12 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const houseOffsetFromRoad = 0.00008; // same as `rowOffset` used in generateHousesAlongSpine
     const spineToEdgeOffset = houseOffsetFromRoad + spineWidth / 2;
 
-    const secondMidpoint = [
-    midX + unitPerp[0] * spineToEdgeOffset,
-    midY + unitPerp[1] * spineToEdgeOffset
+    const edgeMidX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
+    const edgeMidY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
+
+const secondMidpoint = [
+    edgeMidX - oppositeEdge.direction[0] * spineToEdgeOffset,
+    edgeMidY - oppositeEdge.direction[1] * spineToEdgeOffset
 ];
 
     // 🔍 Find the boundary edge closest to the second midpoint
@@ -720,21 +713,6 @@ function calculateArea(coordinates) {
 
     return Math.round(hectares * 100) / 100;
 }
-    
-    // Ensure area is displayed correctly
-    const displayArea = stats.totalArea || 0;
-    document.getElementById('total-area').textContent = displayArea + ' ha';
-    document.getElementById('home-count').textContent = stats.homeCount;
-    
-    // Density: homes per hectare of TOTAL site area
-    if (stats.totalArea > 0) {
-        stats.density = Math.round(stats.homeCount / stats.totalArea);
-    } else {
-        stats.density = 0;
-    }
-    
-    document.getElementById('density').textContent = stats.density + ' homes/ha';
-}
 
 function showNotification(message, type) {
     const notification = document.getElementById('notification');
@@ -750,4 +728,19 @@ function showLoading(show) {
     document.getElementById('loading').style.display = show ? 'block' : 'none';
 }
 
+function updateStats() {
+    const displayArea = stats.totalArea || 0;
+    document.getElementById('total-area').textContent = displayArea + ' ha';
+    document.getElementById('home-count').textContent = stats.homeCount;
+
+    if (stats.totalArea > 0) {
+        stats.density = Math.round(stats.homeCount / stats.totalArea);
+    } else {
+        stats.density = 0;
+    }
+
+    document.getElementById('density').textContent = stats.density + ' homes/ha';
+}
+
 updateStats();
+}
