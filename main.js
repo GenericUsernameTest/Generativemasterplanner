@@ -444,11 +444,11 @@ function addSecondSpine(boundaryCoords, firstSpineLine) {
     const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
     if (!oppositeEdge) return [];
 
-    // ✅ Define the midpoint of that opposite edge
-    const hitPoint = [
-        (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2,
-        (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2
-    ];
+ const inset = 0.00008; // ~8m clearance from boundary
+const hitPoint = [
+  (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2 - oppositeEdge.direction[0] * inset,
+  (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2 - oppositeEdge.direction[1] * inset
+];
 
     const edgeDirection = oppositeEdge.direction;
 
