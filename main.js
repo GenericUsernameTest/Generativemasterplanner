@@ -444,12 +444,19 @@ function addSecondSpine(boundaryCoords, firstSpineLine) {
     const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
     if (!oppositeEdge) return [];
 
- const inset = 0.00008; // ~8m clearance from boundary
-const hitPoint = [
-  (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2 - oppositeEdge.direction[0] * inset,
-  (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2 - oppositeEdge.direction[1] * inset
-];
+// Rotate the edge direction 90° counterclockwise to get a perpendicular vector
+const perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
 
+const midX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
+const midY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
+
+const perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
+const inset = 0.00008; // ~8m clearance from boundary
+
+const hitPoint = [
+  midX + perp[0] * inset,
+  midY + perp[1] * inset
+];
     const edgeDirection = oppositeEdge.direction;
 
     const leftLength = calculateSpineLengthInDirection(
