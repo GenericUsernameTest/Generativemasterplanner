@@ -345,6 +345,7 @@ function generateHousesAlongRoads() {
                 if (isPointInPolygon(housePoint, boundaryCoords) &&
                     !isPointOnAccessRoad(housePoint, coords, 0.00008)) {
                     
+                    console.log('Creating house at angle:', spineAngle * 180 / Math.PI, 'degrees');
                     const house = createRotatedHouse(houseX, houseY, houseWidth, houseLength, spineAngle);
                     
                     if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
@@ -449,27 +450,28 @@ function createPerfectSquareHouse(centerX, centerY, width, length) {
 }
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
-    // Create perfect 90-degree rectangle ROTATED to match spine angle
+    // Create perfect rectangular house that rotates to match spine angle
     const halfWidth = width / 2;
     const halfLength = length / 2;
     
-    // Define corners as perfect rectangle (before rotation)
+    // Create corners as a perfect rectangle (5m x 5m)
     const corners = [
-        [-halfLength, -halfWidth], // Bottom left
-        [halfLength, -halfWidth],  // Bottom right (90° from previous)
-        [halfLength, halfWidth],   // Top right (90° from previous)
-        [-halfLength, halfWidth],  // Top left (90° from previous)
-        [-halfLength, -halfWidth]  // Close polygon (back to start)
+        [-halfLength, -halfWidth],
+        [halfLength, -halfWidth], 
+        [halfLength, halfWidth],
+        [-halfLength, halfWidth],
+        [-halfLength, -halfWidth]
     ];
     
-    // Apply rotation to match spine road angle while maintaining 90-degree corners
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
+    // Apply rotation transformation
+    const cosAngle = Math.cos(angle);
+    const sinAngle = Math.sin(angle);
     
     const rotatedCorners = corners.map(([x, y]) => {
-        // Precise rotation matrix for maintaining right angles
-        const rotatedX = x * cos - y * sin;
-        const rotatedY = x * sin + y * cos;
+        // Rotate each corner around the center
+        const rotatedX = x * cosAngle - y * sinAngle;
+        const rotatedY = x * sinAngle + y * cosAngle;
+        
         return [
             centerX + rotatedX,
             centerY + rotatedY
