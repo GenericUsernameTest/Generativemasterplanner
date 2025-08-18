@@ -392,8 +392,13 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     const spineY = spineLine[0][1] + t * spineDirection[1];
 
     [-1, 1].forEach(side => {
-      const houseX = spineX + perpDirection[0] * side * (spineWidth / 2 + dimensions.setbackFrontDeg);
-      const houseY = spineY + perpDirection[1] * side * (spineWidth / 2 + dimensions.setbackFrontDeg);
+const halfRoadWidthDeg = spineWidth / 2;
+
+const offsetDistance =
+  halfRoadWidthDeg + dimensions.setbackFrontDeg + dimensions.widthDeg / 2;
+
+const houseX = spineX + perpDirection[0] * side * offsetDistance;
+const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
       if (
