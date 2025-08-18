@@ -480,6 +480,13 @@ function addSecondSpine(boundaryCoords, firstSpineLine) {
     const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
     if (!spinePolygon) return [];
 
+    const spineLength = Math.sqrt(
+  Math.pow(spineEnd[0] - spineStart[0], 2) +
+  Math.pow(spineEnd[1] - spineStart[1], 2)
+);
+
+console.log('Second spine length (degrees):', spineLength);
+
     // ✅ Generate houses for this second spine
     generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
 
