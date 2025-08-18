@@ -344,66 +344,89 @@ if (accessRoadPolygon) {
 
 // Extract house generation logic into separate function for reuse
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
- 
-    const houseWidth = 0.0001;  // ≈ 11 meters (width = across the spine)
-    const houseLength = 0.000063; // ≈ 7 meters (length = along the spine)
-    const houseHeight = 4;
-   
-    const spacingFactor = 1.4;  // increase this if houses are touching
-    const houseSpacing = houseLength * spacingFactor;
-    
-    const rowOffsetFactor = 1.6;  // control front-back spacing from road
-    const rowOffset = houseWidth * rowOffsetFactor;
-    
-    const spineDirection = [
-        spineLine[1][0] - spineLine[0][0],
-        spineLine[1][1] - spineLine[0][1]
-    ];
+  const lat = map.getCenter().lat;
 
-    const totalSpineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
-    if (totalSpineLength === 0) return;
+  const houseType = {
+    width: 11,
+    length: 7,
+    setbackLeft: 2,
+    setbackRight: 2,
+    setbackFront: 4,
+    setbackBack: 6
+  };
 
-    const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
+  const dimensions = {
+    widthDeg: metersToDegrees(houseType.width, lat).lng,
+    lengthDeg: metersToDegrees(houseType.length, lat).lat,
+    setbackLeftDeg: metersToDegrees(houseType.setbackLeft, lat).lng,
+    setbackRightDeg: metersToDegrees(houseType.setbackRight, lat).lng,
+    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
+    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
+  };
 
-    const perpDirection = [
-        -spineDirection[1] / totalSpineLength,
-        spineDirection[0] / totalSpineLength
-    ];
+  const houseHeight = 4;
 
-    const numHouses = Math.floor(totalSpineLength / houseSpacing);
+  const spineDirection = [
+    spineLine[1][0] - spineLine[0][0],
+    spineLine[1][1] - spineLine[0][1]
+  ];
 
-    for (let i = 0; i <= numHouses; i++) {
-        const t = i / Math.max(numHouses, 1);
-        const spineX = spineLine[0][0] + t * spineDirection[0];
-        const spineY = spineLine[0][1] + t * spineDirection[1];
+  const totalSpineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
+  if (totalSpineLength === 0) return;
 
-        [-1, 1].forEach(side => {
-            const houseX = spineX + perpDirection[0] * side * (spineWidth / 2 + rowOffset);
-            const houseY = spineY + perpDirection[1] * side * (spineWidth / 2 + rowOffset);
-            const housePoint = [houseX, houseY];
+  const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
 
-            if (
-                isPointInPolygon(housePoint, boundaryCoords) &&
-                !accessRoads.some(road =>
-    isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
-)
-            ) {
-                const house = createRotatedHouse(houseX, houseY, houseLength, houseWidth, spineAngle);
-                
-                if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
-                    houses.push({
-                        type: 'Feature',
-                        geometry: house,
-                        properties: {
-                            type: 'house',
-                            id: houses.length + 1,
-                            height: houseHeight
-                        }
-                    });
-                }
+  const perpDirection = [
+    -spineDirection[1] / totalSpineLength,
+    spineDirection[0] / totalSpineLength
+  ];
+
+  // Calculate spacing including setbacks between houses
+  const houseSpacing = dimensions.lengthDeg + dimensions.setbackFrontDeg + dimensions.setbackBackDeg;
+
+  const numHouses = Math.floor(totalSpineLength / houseSpacing);
+
+  for (let i = 0; i <= numHouses; i++) {
+    const t = i / Math.max(numHouses, 1);
+    const spineX = spineLine[0][0] + t * spineDirection[0];
+    const spineY = spineLine[0][1] + t * spineDirection[1];
+
+    [-1, 1].forEach(side => {
+      const houseX = spineX + perpDirection[0] * side * (spineWidth / 2 + dimensions.setbackFrontDeg);
+      const houseY = spineY + perpDirection[1] * side * (spineWidth / 2 + dimensions.setbackFrontDeg);
+      const housePoint = [houseX, houseY];
+
+      if (
+        isPointInPolygon(housePoint, boundaryCoords) &&
+        !accessRoads.some(road =>
+          isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
+        )
+      ) {
+        const house = createRotatedHouse(
+          houseX,
+          houseY,
+          dimensions.lengthDeg,
+          dimensions.widthDeg,
+          spineAngle
+        );
+
+        if (
+          house &&
+          house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))
+        ) {
+          houses.push({
+            type: 'Feature',
+            geometry: house,
+            properties: {
+              type: 'house',
+              id: houses.length + 1,
+              height: houseHeight
             }
-        });
-    }
+          });
+        }
+      }
+    });
+  }
 }
 
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
@@ -767,6 +790,16 @@ function updateStats() {
     }
 
     document.getElementById('density').textContent = stats.density + ' homes/ha';
+}
+
+function metersToDegrees(meters, latitude = 51.5) {
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = 40075000 * Math.cos(latitude * Math.PI / 180) / 360;
+
+  return {
+    lat: meters / metersPerDegLat,
+    lng: meters / metersPerDegLng
+  };
 }
 
 updateStats();
