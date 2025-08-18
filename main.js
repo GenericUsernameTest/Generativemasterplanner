@@ -444,25 +444,50 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     // Midpoint of first spine
     const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
     const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
+    const secondMidpoint = [midX, midY];
 
-    // Vector perpendicular to first spine
+    // Perpendicular direction (vector across site)
     const perp = [-firstSpineDirection[1], firstSpineDirection[0]];
     const perpLength = Math.sqrt(perp[0] ** 2 + perp[1] ** 2);
     const unitPerp = [perp[0] / perpLength, perp[1] / perpLength];
 
-    const houseOffsetFromRoad = 0.00008;
-    const spineToEdgeOffset = houseOffsetFromRoad + spineWidth / 2;
+    // How far we can extend in both directions (perpendicular to first spine)
+    const leftLength = calculateSpineLengthInDirection(
+        secondMidpoint,
+        [-unitPerp[0], -unitPerp[1]],
+        boundaryCoords,
+        boundaryBuffer
+    );
 
-    const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
-if (!oppositeEdge) return []; // ✅ early exit
+    const rightLength = calculateSpineLengthInDirection(
+        secondMidpoint,
+        unitPerp,
+        boundaryCoords,
+        boundaryBuffer
+    );
 
-const spineInset = 0.00008; // small inward offset
-const edgeDir = oppositeEdge.direction;
+    const spineStart = [
+        secondMidpoint[0] - unitPerp[0] * leftLength,
+        secondMidpoint[1] - unitPerp[1] * leftLength
+    ];
 
-const secondMidpoint = [
-    (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2 - edgeDir[0] * spineInset,
-    (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2 - edgeDir[1] * spineInset
-];
+    const spineEnd = [
+        secondMidpoint[0] + unitPerp[0] * rightLength,
+        secondMidpoint[1] + unitPerp[1] * rightLength
+    ];
+
+    const spineLine = [spineStart, spineEnd];
+    const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
+    if (!spinePolygon) return [];
+
+    generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
+
+    return [{
+        type: 'Feature',
+        geometry: spinePolygon,
+        properties: { type: 'spine-road' }
+    }];
+}
     
     // ✅ Add this check here
 if (!isPointInPolygon(secondMidpoint, boundaryCoords)) {
