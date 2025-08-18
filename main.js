@@ -441,83 +441,62 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const spineWidth = 0.000045;
     const boundaryBuffer = 0.000050;
 
-    // Midpoint of first spine
+    // 🔁 Use first spine's direction
+    const spineDirection = firstSpineDirection;
+
+    // ⬛ 1. Find midpoint of first spine
     const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
     const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
-    const secondMidpoint = [midX, midY];
 
-    // Perpendicular direction (vector across site)
-    const perp = [-firstSpineDirection[1], firstSpineDirection[0]];
+    // ⬛ 2. Get perpendicular vector across the site
+    const perp = [-spineDirection[1], spineDirection[0]];
     const perpLength = Math.sqrt(perp[0] ** 2 + perp[1] ** 2);
     const unitPerp = [perp[0] / perpLength, perp[1] / perpLength];
 
-    // How far we can extend in both directions (perpendicular to first spine)
+    // ⬛ 3. Raycast out from midpoint across the site to find the opposite edge
+    let step = 0.00005;
+    let maxDistance = 0.005;
+    let hitPoint = null;
+
+    for (let dist = step; dist < maxDistance; dist += step) {
+        const testPoint = [
+            midX + unitPerp[0] * dist,
+            midY + unitPerp[1] * dist
+        ];
+        if (!isPointInPolygon(testPoint, boundaryCoords)) {
+            hitPoint = [
+                midX + unitPerp[0] * (dist - boundaryBuffer),
+                midY + unitPerp[1] * (dist - boundaryBuffer)
+            ];
+            break;
+        }
+    }
+
+    if (!hitPoint) return [];
+
+    // ⬛ 4. Create second spine from hitPoint in same direction as first spine
     const leftLength = calculateSpineLengthInDirection(
-        secondMidpoint,
-        [-unitPerp[0], -unitPerp[1]],
-        boundaryCoords,
-        boundaryBuffer
-    );
-
-    const rightLength = calculateSpineLengthInDirection(
-        secondMidpoint,
-        unitPerp,
-        boundaryCoords,
-        boundaryBuffer
-    );
-
-    const spineStart = [
-        secondMidpoint[0] - unitPerp[0] * leftLength,
-        secondMidpoint[1] - unitPerp[1] * leftLength
-    ];
-
-    const spineEnd = [
-        secondMidpoint[0] + unitPerp[0] * rightLength,
-        secondMidpoint[1] + unitPerp[1] * rightLength
-    ];
-
-    const spineLine = [spineStart, spineEnd];
-    const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
-    if (!spinePolygon) return [];
-
-    generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
-
-    return [{
-        type: 'Feature',
-        geometry: spinePolygon,
-        properties: { type: 'spine-road' }
-    }];
-}
-    
-    // ✅ Add this check here
-if (!isPointInPolygon(secondMidpoint, boundaryCoords)) {
-    return []; // Don't add second spine if midpoint is outside the site
-}
-
-    const spineDirection = oppositeEdge.direction;
-
-    const leftLength = calculateSpineLengthInDirection(
-        secondMidpoint,
+        hitPoint,
         [-spineDirection[0], -spineDirection[1]],
         boundaryCoords,
         boundaryBuffer
     );
 
     const rightLength = calculateSpineLengthInDirection(
-        secondMidpoint,
+        hitPoint,
         spineDirection,
         boundaryCoords,
         boundaryBuffer
     );
 
     const spineStart = [
-        secondMidpoint[0] - spineDirection[0] * leftLength,
-        secondMidpoint[1] - spineDirection[1] * leftLength
+        hitPoint[0] - spineDirection[0] * leftLength,
+        hitPoint[1] - spineDirection[1] * leftLength
     ];
 
     const spineEnd = [
-        secondMidpoint[0] + spineDirection[0] * rightLength,
-        secondMidpoint[1] + spineDirection[1] * rightLength
+        hitPoint[0] + spineDirection[0] * rightLength,
+        hitPoint[1] + spineDirection[1] * rightLength
     ];
 
     const spineLine = [spineStart, spineEnd];
