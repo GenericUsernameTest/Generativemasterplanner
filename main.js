@@ -743,4 +743,3 @@ function updateStats() {
 }
 
 updateStats();
-}
