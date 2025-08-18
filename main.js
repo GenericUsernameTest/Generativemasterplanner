@@ -420,7 +420,7 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     ];
 
     // 🔍 Find the boundary edge closest to the second midpoint
-    const oppositeEdge = findClosestBoundaryEdge(secondMidpoint, boundaryCoords);
+const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
     if (!oppositeEdge) return [];
 
     const spineDirection = oppositeEdge.direction; // 🔄 align with that edge
