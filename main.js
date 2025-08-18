@@ -389,9 +389,6 @@ function generateHousesAlongRoads() {
         type: 'FeatureCollection',
         features: houses
     });
-    
-    stats.homeCount = houses.length;
-    console.log('Generated', houses.length, 'houses and', spineRoads.length, 'spine roads');
 }
 
 // Helper functions
