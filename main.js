@@ -378,18 +378,6 @@ function generateHousesAlongRoads() {
     console.log('Generated', houses.length, 'houses and', spineRoads.length, 'spine roads');
 }
     
-    // Update map - FIXED
-    const allRoads = [...accessRoads, ...spineRoads];
-    map.getSource('access-roads').setData({
-        type: 'FeatureCollection',
-        features: allRoads
-    });
-    
-    map.getSource('houses').setData({
-        type: 'FeatureCollection',
-        features: houses
-    });
-}
 
 // Helper functions
 function calculateSpineLengthInDirection(startPoint, direction, boundaryCoords, buffer) {
