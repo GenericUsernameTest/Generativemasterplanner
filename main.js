@@ -173,11 +173,17 @@ map.on('draw.create', function(e) {
         showNotification('Site boundary created! Area: ' + boundaryArea + ' ha', 'success');
 
     } else if (currentTool === 'road') {
-        accessRoads.push(feature);
+        feature.properties = feature.properties || {};
+        feature.properties.type = 'access-road'; // 🧠 IMPORTANT
+        accessRoads.push(feature);               // 🧠 Store it!
+        map.getSource('access-roads').setData({
+            type: 'FeatureCollection',
+            features: accessRoads
+        });
+
         showNotification('Access road added!', 'success');
     }
 
-    // Deactivate current tool
     currentTool = null;
     document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
     setTimeout(() => {
