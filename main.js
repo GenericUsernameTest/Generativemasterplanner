@@ -456,13 +456,14 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
 if (!oppositeEdge) return []; // ✅ early exit
 
-const edgeMidX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
-const edgeMidY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
+const spineInset = 0.00008; // small inward offset
+const edgeDir = oppositeEdge.direction;
 
 const secondMidpoint = [
-    edgeMidX - oppositeEdge.direction[0] * spineToEdgeOffset,
-    edgeMidY - oppositeEdge.direction[1] * spineToEdgeOffset
+    (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2 - edgeDir[0] * spineInset,
+    (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2 - edgeDir[1] * spineInset
 ];
+    
     // ✅ Add this check here
 if (!isPointInPolygon(secondMidpoint, boundaryCoords)) {
     return []; // Don't add second spine if midpoint is outside the site
