@@ -345,7 +345,7 @@ if (accessRoadPolygon) {
 // Extract house generation logic into separate function for reuse
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     const houseSpacing = 0.000063;
-    const rowOffset = 0.00015;
+    const rowOffset = 0.00008;
     const houseWidth = 0.000045;
     const houseLength = 0.000045;
     const houseHeight = 4;
@@ -450,7 +450,7 @@ const midX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
 const midY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
 const perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
-const inset = 0.00008; // ~8m clearance from boundary
+const inset = 0.000015; // ~15m clearance from boundary
 
 const hitPoint = [
   midX + perp[0] * inset,
