@@ -52,6 +52,7 @@ map.on('moveend', () => {
     }));
 });
 
+map.on('load', function() {
     // Add sources
     map.addSource('site-boundary', {
         type: 'geojson',
@@ -68,7 +69,7 @@ map.on('moveend', () => {
         data: { type: 'FeatureCollection', features: [] }
     });
 
-    // Site boundary layers
+    // Add layers
     map.addLayer({
         id: 'site-boundary-fill',
         type: 'fill',
@@ -83,38 +84,35 @@ map.on('moveend', () => {
         paint: { 'line-color': '#3498db', 'line-width': 2 }
     });
 
-    // Access roads (8m wide) - POLYGON VERSION (no scaling)
     map.addLayer({
         id: 'access-road-polygons',
         type: 'fill',
         source: 'access-roads',
         filter: ['==', ['get', 'type'], 'access-road'],
-        paint: { 
+        paint: {
             'fill-color': '#7f8c8d',
-            'fill-opacity': 0.9 
+            'fill-opacity': 0.9
         }
     });
 
-    // Spine roads (5m wide) - POLYGONS
     map.addLayer({
         id: 'spine-roads',
         type: 'fill',
         source: 'access-roads',
         filter: ['==', ['get', 'type'], 'spine-road'],
-        paint: { 
+        paint: {
             'fill-color': '#7f8c8d',
             'fill-opacity': 1.0
         }
     });
 
-    // Houses layer with CORRECT HEIGHT
     map.addLayer({
         id: 'houses',
         type: 'fill-extrusion',
         source: 'houses',
         paint: {
             'fill-extrusion-color': '#e74c3c',
-            'fill-extrusion-height': ['get', 'height'], // Use stored height property
+            'fill-extrusion-height': ['get', 'height'],
             'fill-extrusion-opacity': 0.8
         }
     });
