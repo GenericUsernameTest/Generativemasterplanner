@@ -400,43 +400,39 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
 }
 
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
-    const firstSpineMid = [
-        (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2,
-        (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2
-    ];
+    const [start, end] = firstSpineLine;
+    const spineDx = end[0] - start[0];
+    const spineDy = end[1] - start[1];
+    const spineLength = Math.sqrt(spineDx * spineDx + spineDy * spineDy);
+    const spineDir = [spineDx / spineLength, spineDy / spineLength];
 
-    let maxDistance = -Infinity;
-    let oppositeEdge = null;
+    let bestEdge = null;
+    let bestAlignment = -1;
 
     for (let i = 0; i < boundaryCoords.length - 1; i++) {
-        const start = boundaryCoords[i];
-        const end = boundaryCoords[i + 1];
+        const a = boundaryCoords[i];
+        const b = boundaryCoords[i + 1];
 
-        // Midpoint of this edge
-        const edgeMid = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
-
-        const dx = end[0] - start[0];
-        const dy = end[1] - start[1];
+        const dx = b[0] - a[0];
+        const dy = b[1] - a[1];
         const length = Math.sqrt(dx * dx + dy * dy);
-        const direction = [dx / length, dy / length];
+        const dir = [dx / length, dy / length];
 
-        const distance = Math.sqrt(
-            Math.pow(edgeMid[0] - firstSpineMid[0], 2) +
-            Math.pow(edgeMid[1] - firstSpineMid[1], 2)
-        );
+        // Take absolute dot product to find alignment (1 = parallel, 0 = perpendicular)
+        const dot = Math.abs(spineDir[0] * dir[0] + spineDir[1] * dir[1]);
 
-        if (distance > maxDistance) {
-            maxDistance = distance;
-            oppositeEdge = {
-                start,
-                end,
-                direction,
-                distance
+        if (dot > bestAlignment) {
+            bestAlignment = dot;
+            bestEdge = {
+                start: a,
+                end: b,
+                direction: dir,
+                alignment: dot
             };
         }
     }
 
-    return oppositeEdge;
+    return bestEdge;
 }
 
 function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
