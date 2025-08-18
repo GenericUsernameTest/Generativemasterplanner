@@ -399,6 +399,46 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     }
 }
 
+function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
+    const firstSpineMid = [
+        (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2,
+        (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2
+    ];
+
+    let maxDistance = -Infinity;
+    let oppositeEdge = null;
+
+    for (let i = 0; i < boundaryCoords.length - 1; i++) {
+        const start = boundaryCoords[i];
+        const end = boundaryCoords[i + 1];
+
+        // Midpoint of this edge
+        const edgeMid = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
+
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const length = Math.sqrt(dx * dx + dy * dy);
+        const direction = [dx / length, dy / length];
+
+        const distance = Math.sqrt(
+            Math.pow(edgeMid[0] - firstSpineMid[0], 2) +
+            Math.pow(edgeMid[1] - firstSpineMid[1], 2)
+        );
+
+        if (distance > maxDistance) {
+            maxDistance = distance;
+            oppositeEdge = {
+                start,
+                end,
+                direction,
+                distance
+            };
+        }
+    }
+
+    return oppositeEdge;
+}
+
 function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const spineWidth = 0.000045;
     const boundaryBuffer = 0.000050;
@@ -511,45 +551,7 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
     return closestEdge;
 }
 
-function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
-    const firstSpineMid = [
-        (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2,
-        (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2
-    ];
 
-    let maxDistance = -Infinity;
-    let oppositeEdge = null;
-
-    for (let i = 0; i < boundaryCoords.length - 1; i++) {
-        const start = boundaryCoords[i];
-        const end = boundaryCoords[i + 1];
-
-        // Midpoint of this edge
-        const edgeMid = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
-
-        const dx = end[0] - start[0];
-        const dy = end[1] - start[1];
-        const length = Math.sqrt(dx * dx + dy * dy);
-        const direction = [dx / length, dy / length];
-
-        const distance = Math.sqrt(
-            Math.pow(edgeMid[0] - firstSpineMid[0], 2) +
-            Math.pow(edgeMid[1] - firstSpineMid[1], 2)
-        );
-
-        if (distance > maxDistance) {
-            maxDistance = distance;
-            oppositeEdge = {
-                start,
-                end,
-                direction,
-                distance
-            };
-        }
-    }
-
-    return oppositeEdge;
-}
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
     // Create perfect rectangular house that rotates to match spine angle
