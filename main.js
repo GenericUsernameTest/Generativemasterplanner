@@ -380,6 +380,8 @@ function generateHousesAlongRoads() {
         features: houses
     });
 
+addSecondSpine(boundaryCoords, spineLine, spineDirection);
+    
     stats.homeCount = houses.length;
     console.log('Generated', houses.length, 'houses and', spineRoads.length, 'spine roads');
 }
@@ -647,3 +649,126 @@ function showLoading(show) {
 }
 
 updateStats();
+
+function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
+    const spineWidth = 0.000045;
+    const houseSpacing = 0.000063;
+    const rowOffset = 0.00008;
+    const houseWidth = 0.000045;
+    const houseLength = 0.000045;
+    const houseHeight = 4;
+    const boundaryBuffer = 0.000050;
+
+    // 1. Find the edge farthest from the first spine midpoint
+    const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
+    const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
+    const midpoint = [midX, midY];
+
+    let farthestEdge = null;
+    let maxDistance = 0;
+
+    for (let i = 0; i < boundaryCoords.length - 1; i++) {
+        const start = boundaryCoords[i];
+        const end = boundaryCoords[i + 1];
+
+        const distance = pointToLineDistance(midpoint, start, end);
+        if (distance > maxDistance) {
+            maxDistance = distance;
+            const dx = end[0] - start[0];
+            const dy = end[1] - start[1];
+            const length = Math.sqrt(dx * dx + dy * dy);
+
+            farthestEdge = {
+                start,
+                end,
+                direction: [dx / length, dy / length]
+            };
+        }
+    }
+
+    if (!farthestEdge) return;
+
+    // 2. Determine new spine road line
+    const spineDirection = farthestEdge.direction;
+
+    const centerPoint = midpoint;
+    const leftLength = calculateSpineLengthInDirection(
+        centerPoint,
+        [-spineDirection[0], -spineDirection[1]],
+        boundaryCoords,
+        boundaryBuffer
+    );
+    const rightLength = calculateSpineLengthInDirection(
+        centerPoint,
+        spineDirection,
+        boundaryCoords,
+        boundaryBuffer
+    );
+
+    const spineStart = [
+        centerPoint[0] - spineDirection[0] * leftLength,
+        centerPoint[1] - spineDirection[1] * leftLength
+    ];
+
+    const spineEnd = [
+        centerPoint[0] + spineDirection[0] * rightLength,
+        centerPoint[1] + spineDirection[1] * rightLength
+    ];
+
+    const spineLine = [spineStart, spineEnd];
+    const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
+
+    if (spinePolygon) {
+        map.getSource('access-roads')._data.features.push({
+            type: 'Feature',
+            geometry: spinePolygon,
+            properties: { type: 'spine-road' }
+        });
+    }
+
+    // 3. Homes
+    const totalSpineLength = Math.sqrt(
+        Math.pow(spineEnd[0] - spineStart[0], 2) +
+        Math.pow(spineEnd[1] - spineStart[1], 2)
+    );
+
+    const spineAngle = Math.atan2(
+        spineEnd[1] - spineStart[1],
+        spineEnd[0] - spineStart[0]
+    );
+
+    const perpDirection = [
+        -(spineEnd[1] - spineStart[1]) / totalSpineLength,
+        (spineEnd[0] - spineStart[0]) / totalSpineLength
+    ];
+
+    const numHouses = Math.floor(totalSpineLength / houseSpacing);
+
+    for (let i = 0; i <= numHouses; i++) {
+        const t = i / Math.max(numHouses, 1);
+        const spineX = spineStart[0] + t * (spineEnd[0] - spineStart[0]);
+        const spineY = spineStart[1] + t * (spineEnd[1] - spineStart[1]);
+
+        [-1, 1].forEach(side => {
+            const houseX = spineX + perpDirection[0] * side * (spineWidth / 2 + rowOffset);
+            const houseY = spineY + perpDirection[1] * side * (spineWidth / 2 + rowOffset);
+
+            const house = createRotatedHouse(houseX, houseY, houseLength, houseWidth, spineAngle);
+
+            if (
+                house &&
+                house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))
+            ) {
+                houses.push({
+                    type: 'Feature',
+                    geometry: house,
+                    properties: {
+                        type: 'house',
+                        id: houses.length + 1,
+                        height: houseHeight
+                    }
+                });
+            }
+        });
+    }
+}
