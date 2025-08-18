@@ -454,15 +454,15 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const spineToEdgeOffset = houseOffsetFromRoad + spineWidth / 2;
 
     const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
-    if (!oppositeEdge) return [];
+if (!oppositeEdge) return []; // ✅ early exit
 
-    const edgeMidX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
-    const edgeMidY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
+const edgeMidX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
+const edgeMidY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
-    const secondMidpoint = [
-        edgeMidX - oppositeEdge.direction[0] * spineToEdgeOffset,
-        edgeMidY - oppositeEdge.direction[1] * spineToEdgeOffset
-    ];
+const secondMidpoint = [
+    edgeMidX - oppositeEdge.direction[0] * spineToEdgeOffset,
+    edgeMidY - oppositeEdge.direction[1] * spineToEdgeOffset
+];
     // ✅ Add this check here
 if (!isPointInPolygon(secondMidpoint, boundaryCoords)) {
     return []; // Don't add second spine if midpoint is outside the site
