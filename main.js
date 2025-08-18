@@ -1,12 +1,14 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-// Initialize map with center and zoom
+// Try to get saved view from localStorage
+const savedView = JSON.parse(localStorage.getItem('mapView'));
+
 const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-    center: [-0.1278, 51.5074],
-    zoom: 15
+    center: savedView?.center || [-0.1278, 51.5074],  // fallback to London
+    zoom: savedView?.zoom || 15                      // fallback zoom
 });
 
 // Error handling
@@ -40,9 +42,15 @@ let accessRoads = [];
 let houses = [];
 let stats = { totalArea: 0, homeCount: 0, density: 0 };
 
-map.on('load', function() {
-    console.log('Map loaded');
-    showNotification('Map loaded!', 'success');
+map.on('moveend', () => {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+
+    localStorage.setItem('mapView', JSON.stringify({
+        center: [center.lng, center.lat],
+        zoom: zoom
+    }));
+});
 
     // Add sources
     map.addSource('site-boundary', {
