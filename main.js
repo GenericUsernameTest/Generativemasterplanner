@@ -442,11 +442,6 @@ const secondMidpoint = [
         }
     }
 
-    if (!farthestEdge || maxDistance < 0.0001) {
-        console.log('No suitable edge found for second spine');
-        return [];
-    }
-
     // 2. Create second spine road from midpoint toward farthest edge
     // Reuse spineDirection from earlier in function (already set correctly)
 const leftLength = calculateSpineLengthInDirection(
