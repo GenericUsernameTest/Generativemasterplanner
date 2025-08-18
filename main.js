@@ -449,11 +449,13 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const unitPerp = [perp[0] / perpLength, perp[1] / perpLength];
 
     // Move across the site in perpendicular direction
-    const testOffset = 0.0003; // move a little further
+    const houseOffsetFromRoad = 0.00008; // same as `rowOffset` used in generateHousesAlongSpine
+    const spineToEdgeOffset = houseOffsetFromRoad + spineWidth / 2;
+
     const secondMidpoint = [
-        midX + unitPerp[0] * testOffset,
-        midY + unitPerp[1] * testOffset
-    ];
+    midX + unitPerp[0] * spineToEdgeOffset,
+    midY + unitPerp[1] * spineToEdgeOffset
+];
 
     // 🔍 Find the boundary edge closest to the second midpoint
 const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
@@ -699,20 +701,25 @@ function clearAll() {
 function calculateArea(coordinates) {
     let area = 0;
     const numPoints = coordinates.length - 1;
-    
+
     for (let i = 0; i < numPoints; i++) {
         const j = (i + 1) % numPoints;
         area += coordinates[i][0] * coordinates[j][1];
         area -= coordinates[j][0] * coordinates[i][1];
     }
-    
+
     area = Math.abs(area) / 2;
-    const hectares = area * 12100;
+
+    // Approximate meters per degree at current latitude
+    const avgLat = coordinates.reduce((sum, c) => sum + c[1], 0) / coordinates.length;
+    const metersPerDegLat = 111320;
+    const metersPerDegLng = 40075000 * Math.cos(avgLat * Math.PI / 180) / 360;
+
+    const sqMeters = area * metersPerDegLat * metersPerDegLng;
+    const hectares = sqMeters / 10000;
+
     return Math.round(hectares * 100) / 100;
 }
-
-function updateStats() {
-    console.log('Updating stats - Total Area:', stats.totalArea, 'Home Count:', stats.homeCount);
     
     // Ensure area is displayed correctly
     const displayArea = stats.totalArea || 0;
