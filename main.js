@@ -319,7 +319,7 @@ if (accessRoadPolygon) {
         generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
 
         // Generate second spine from this first spine
-        const secondSpineRoads = addSecondSpine(boundaryCoords, spineLine, closestEdge);
+        const secondSpineRoads = addSecondSpine(boundaryCoords, spineLine);
         if (secondSpineRoads && secondSpineRoads.length > 0) {
             spineRoads.push(...secondSpineRoads);
         }
@@ -436,20 +436,15 @@ function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     return bestEdge;
 }
 
-function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineEdge) {
+function addSecondSpine(boundaryCoords, firstSpineLine) {
     const spineWidth = 0.000045;
     const boundaryBuffer = 0.000050;
 
-    // 🔁 Get the direction and midpoint of first spine
-    const spineDirection = firstSpineEdge.direction;
-    const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
-    const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
-
-    // 🔁 Get the opposite boundary edge
-    const oppositeEdge = findOppositeBoundaryEdge(firstSpineEdge, boundaryCoords);
+    // ✅ Get the opposite boundary edge relative to first spine
+    const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
     if (!oppositeEdge) return [];
 
-    // 🟢 Use midpoint of the opposite edge
+    // ✅ Define the midpoint of that opposite edge
     const hitPoint = [
         (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2,
         (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2
@@ -485,6 +480,7 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineEdge) {
     const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
     if (!spinePolygon) return [];
 
+    // ✅ Generate houses for this second spine
     generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
 
     return [{
@@ -493,7 +489,6 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineEdge) {
         properties: { type: 'spine-road' }
     }];
 }
-
 // Helper functions
 function calculateSpineLengthInDirection(startPoint, direction, boundaryCoords, buffer) {
     let maxLength = 0;
