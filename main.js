@@ -172,7 +172,7 @@ map.on('draw.create', function(e) {
         updateStats();
         showNotification('Site boundary created! Area: ' + boundaryArea + ' ha', 'success');
 
-    } else if (currentTool === 'road') {
+    } else if (feature.geometry.type === 'LineString') {
         feature.properties = feature.properties || {};
         feature.properties.type = 'access-road'; // 🧠 IMPORTANT
         accessRoads.push(feature);               // 🧠 Store it!
@@ -376,7 +376,9 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
 
             if (
                 isPointInPolygon(housePoint, boundaryCoords) &&
-                !isPointOnAccessRoad(housePoint, accessRoads[0]?.geometry?.coordinates || [], 0.00008)
+                !accessRoads.some(road =>
+    isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
+)
             ) {
                 const house = createRotatedHouse(houseX, houseY, houseLength, houseWidth, spineAngle);
                 
