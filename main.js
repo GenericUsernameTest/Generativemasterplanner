@@ -414,25 +414,31 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
     const midpoint = [midX, midY];
 
-    let farthestEdge = null;
-    let maxDistance = 0;
+   // Reuse the direction of spine 1
+const spineDirection = [...firstSpineDirection];  // same orientation
 
-    for (let i = 0; i < boundaryCoords.length - 1; i++) {
-        const start = boundaryCoords[i];
-        const end = boundaryCoords[i + 1];
+// Move midpoint across the site in the perpendicular direction
+const spineLength = Math.sqrt(
+    (firstSpineLine[1][0] - firstSpineLine[0][0]) ** 2 +
+    (firstSpineLine[1][1] - firstSpineLine[0][1]) ** 2
+);
 
-        const distance = pointToLineDistance(midpoint, start, end);
-        if (distance > maxDistance) {
-            maxDistance = distance;
-            const dx = end[0] - start[0];
-            const dy = end[1] - start[1];
-            const length = Math.sqrt(dx * dx + dy * dy);
+// Perpendicular vector (normal to spine)
+const spineNormal = [
+    -spineDirection[1],  // -dy
+    spineDirection[0]    // dx
+];
 
-            farthestEdge = {
-                start,
-                end,
-                direction: [dx / length, dy / length]
-            };
+// Normalize perpendicular vector
+const normalLength = Math.sqrt(spineNormal[0]**2 + spineNormal[1]**2);
+const unitNormal = [spineNormal[0] / normalLength, spineNormal[1] / normalLength];
+
+// Offset the midpoint by some distance (e.g. 20m = ~0.00018 degrees)
+const offsetDistance = 0.00018;
+const secondMidpoint = [
+    (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2 + unitNormal[0] * offsetDistance,
+    (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2 + unitNormal[1] * offsetDistance
+];
         }
     }
 
@@ -442,31 +448,30 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     }
 
     // 2. Create second spine road from midpoint toward farthest edge
-    const spineDirection = farthestEdge.direction;
+    // Reuse spineDirection from earlier in function (already set correctly)
+const leftLength = calculateSpineLengthInDirection(
+    secondMidpoint,
+    [-spineDirection[0], -spineDirection[1]],
+    boundaryCoords,
+    boundaryBuffer
+);
 
-    // Use midpoint as center and extend in both directions
-    const leftLength = calculateSpineLengthInDirection(
-        midpoint,
-        [-spineDirection[0], -spineDirection[1]],
-        boundaryCoords,
-        boundaryBuffer
-    );
-    const rightLength = calculateSpineLengthInDirection(
-        midpoint,
-        spineDirection,
-        boundaryCoords,
-        boundaryBuffer
-    );
+const rightLength = calculateSpineLengthInDirection(
+    secondMidpoint,
+    spineDirection,
+    boundaryCoords,
+    boundaryBuffer
+);
 
-    const spineStart = [
-        midpoint[0] - spineDirection[0] * leftLength,
-        midpoint[1] - spineDirection[1] * leftLength
-    ];
+const spineStart = [
+    secondMidpoint[0] - spineDirection[0] * leftLength,
+    secondMidpoint[1] - spineDirection[1] * leftLength
+];
 
-    const spineEnd = [
-        midpoint[0] + spineDirection[0] * rightLength,
-        midpoint[1] + spineDirection[1] * rightLength
-    ];
+const spineEnd = [
+    secondMidpoint[0] + spineDirection[0] * rightLength,
+    secondMidpoint[1] + spineDirection[1] * rightLength
+];
 
     const spineLine = [spineStart, spineEnd];
     const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
