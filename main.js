@@ -345,8 +345,8 @@ function generateHousesAlongRoads() {
                     isPointInPolygon(housePoint, boundaryCoords) &&
                     !isPointOnAccessRoad(housePoint, coords, 0.00008)
                 ) {
-                    const house = createRotatedHouse(houseX, houseY, houseWidth, houseLength, spineAngle);
-
+        const house = createRotatedHouse(houseX, houseY, houseWidth, houseLength, spineAngle + Math.PI / 2);
+                    
                     if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
                         houses.push({
                             type: 'Feature',
