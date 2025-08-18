@@ -351,8 +351,8 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     length: 7,
     setbackLeft: 2,
     setbackRight: 2,
-    setbackFront: 6,
-    setbackBack: 6
+    setbackFront: 3,
+    setbackBack: 3
   };
 
   const dimensions = {
