@@ -157,10 +157,9 @@ function activateTool(tool, button) {
     }
 }
 
-// Drawing events
 map.on('draw.create', function(e) {
     const feature = e.features[0];
-    
+
     if (currentTool === 'boundary') {
         siteBoundary = feature;
         map.getSource('site-boundary').setData({
@@ -170,18 +169,20 @@ map.on('draw.create', function(e) {
 
         const boundaryArea = calculateArea(feature.geometry.coordinates[0]);
         stats.totalArea = boundaryArea;
-        console.log('Boundary area calculated:', boundaryArea, 'ha');
         updateStats();
         showNotification('Site boundary created! Area: ' + boundaryArea + ' ha', 'success');
 
-        // FORCE deactivate tool
-        currentTool = null;
-        document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
-        
-        setTimeout(() => {
-            draw.changeMode('simple_select');
-        }, 100);
+    } else if (currentTool === 'road') {
+        accessRoads.push(feature);
+        showNotification('Access road added!', 'success');
     }
+
+    // Deactivate current tool
+    currentTool = null;
+    document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+    setTimeout(() => {
+        draw.changeMode('simple_select');
+    }, 100);
 });
 
 // Additional escape handlers
@@ -438,23 +439,21 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const perpLength = Math.sqrt(perp[0] ** 2 + perp[1] ** 2);
     const unitPerp = [perp[0] / perpLength, perp[1] / perpLength];
 
-    // Move across the site in perpendicular direction
-    const houseOffsetFromRoad = 0.00008; // same as `rowOffset` used in generateHousesAlongSpine
+    const houseOffsetFromRoad = 0.00008;
     const spineToEdgeOffset = houseOffsetFromRoad + spineWidth / 2;
+
+    const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
+    if (!oppositeEdge) return [];
 
     const edgeMidX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
     const edgeMidY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
-const secondMidpoint = [
-    edgeMidX - oppositeEdge.direction[0] * spineToEdgeOffset,
-    edgeMidY - oppositeEdge.direction[1] * spineToEdgeOffset
-];
+    const secondMidpoint = [
+        edgeMidX - oppositeEdge.direction[0] * spineToEdgeOffset,
+        edgeMidY - oppositeEdge.direction[1] * spineToEdgeOffset
+    ];
 
-    // 🔍 Find the boundary edge closest to the second midpoint
-const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
-    if (!oppositeEdge) return [];
-
-    const spineDirection = oppositeEdge.direction; // 🔄 align with that edge
+    const spineDirection = oppositeEdge.direction;
 
     const leftLength = calculateSpineLengthInDirection(
         secondMidpoint,
@@ -484,7 +483,6 @@ const oppositeEdge = findOppositeBoundaryEdge(firstSpineLine, boundaryCoords);
     const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
     if (!spinePolygon) return [];
 
-    // 🏘 Generate homes along new spine
     generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
 
     return [{
