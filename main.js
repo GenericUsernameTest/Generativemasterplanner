@@ -345,7 +345,7 @@ function generateHousesAlongRoads() {
                 if (isPointInPolygon(housePoint, boundaryCoords) &&
                     !isPointOnAccessRoad(housePoint, coords, 0.00008)) {
                     
-                    const house = createPerfectSquareHouse(houseX, houseY, houseWidth, houseLength);
+                    const house = createRotatedHouse(houseX, houseY, houseWidth, houseLength, spineAngle);
                     
                     if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
                         houses.push({
@@ -449,23 +449,36 @@ function createPerfectSquareHouse(centerX, centerY, width, length) {
 }
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
-    // Create perfect 90-degree rectangle - NO ROTATION
-    // Houses should always be axis-aligned rectangles
+    // Create perfect 90-degree rectangle ROTATED to match spine angle
     const halfWidth = width / 2;
     const halfLength = length / 2;
     
-    // Perfect rectangle with 90-degree corners (no rotation applied)
+    // Define corners as perfect rectangle (before rotation)
     const corners = [
-        [centerX - halfLength, centerY - halfWidth], // Bottom left
-        [centerX + halfLength, centerY - halfWidth], // Bottom right (90°)
-        [centerX + halfLength, centerY + halfWidth], // Top right (90°)
-        [centerX - halfLength, centerY + halfWidth], // Top left (90°)
-        [centerX - halfLength, centerY - halfWidth]  // Close polygon
+        [-halfLength, -halfWidth], // Bottom left
+        [halfLength, -halfWidth],  // Bottom right (90° from previous)
+        [halfLength, halfWidth],   // Top right (90° from previous)
+        [-halfLength, halfWidth],  // Top left (90° from previous)
+        [-halfLength, -halfWidth]  // Close polygon (back to start)
     ];
+    
+    // Apply rotation to match spine road angle while maintaining 90-degree corners
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    
+    const rotatedCorners = corners.map(([x, y]) => {
+        // Precise rotation matrix for maintaining right angles
+        const rotatedX = x * cos - y * sin;
+        const rotatedY = x * sin + y * cos;
+        return [
+            centerX + rotatedX,
+            centerY + rotatedY
+        ];
+    });
     
     return {
         type: 'Polygon',
-        coordinates: [corners]
+        coordinates: [rotatedCorners]
     };
 }
 
