@@ -442,7 +442,9 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const boundaryBuffer = 0.000050;
 
     // 🔁 Use first spine's direction
-    const spineDirection = firstSpineDirection;
+    const secondEdge = findClosestBoundaryEdge(hitPoint, boundaryCoords);
+if (!secondEdge) return [];
+const spineDirection = secondEdge.direction;
 
     // ⬛ 1. Find midpoint of first spine
     const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
