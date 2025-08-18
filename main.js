@@ -344,12 +344,17 @@ if (accessRoadPolygon) {
 
 // Extract house generation logic into separate function for reuse
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
-    const houseSpacing = 0.000063;
-    const rowOffset = 0.00008;
-    const houseWidth = 0.000153;  // ≈ 11 meters (width = across the spine)
+ 
+    const houseWidth = 0.0001;  // ≈ 11 meters (width = across the spine)
     const houseLength = 0.000063; // ≈ 7 meters (length = along the spine)
     const houseHeight = 4;
-
+   
+    const spacingFactor = 1.4;  // increase this if houses are touching
+    const houseSpacing = houseLength * spacingFactor;
+    
+    const rowOffsetFactor = 1.6;  // control front-back spacing from road
+    const rowOffset = houseWidth * rowOffsetFactor;
+    
     const spineDirection = [
         spineLine[1][0] - spineLine[0][0],
         spineLine[1][1] - spineLine[0][1]
