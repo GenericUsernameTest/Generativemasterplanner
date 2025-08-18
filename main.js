@@ -399,100 +399,69 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     }
 }
 
-// UPDATED: Second spine generation function that returns roads and generates houses
 function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     const spineWidth = 0.000045;
-    const houseSpacing = 0.000063;
-    const rowOffset = 0.00008;
-    const houseWidth = 0.000045;
-    const houseLength = 0.000045;
-    const houseHeight = 4;
     const boundaryBuffer = 0.000050;
 
-    // 1. Find the edge farthest from the first spine midpoint
+    // Use same orientation as first spine
+    const spineDirection = [...firstSpineDirection]; // ✅ Parallel to spine 1
+
+    // Midpoint of first spine
     const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
     const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
-    const midpoint = [midX, midY];
 
-   // Reuse the direction of spine 1
-const spineDirection = [...firstSpineDirection];  // same orientation
+    // Perpendicular to spine (to move across the site)
+    const perp = [-spineDirection[1], spineDirection[0]];
+    const perpLength = Math.sqrt(perp[0] ** 2 + perp[1] ** 2);
+    const unitPerp = [perp[0] / perpLength, perp[1] / perpLength];
 
-// Move midpoint across the site in the perpendicular direction
-const spineLength = Math.sqrt(
-    (firstSpineLine[1][0] - firstSpineLine[0][0]) ** 2 +
-    (firstSpineLine[1][1] - firstSpineLine[0][1]) ** 2
-);
+    const offsetDistance = 0.00018;
+    const secondMidpoint = [
+        midX + unitPerp[0] * offsetDistance,
+        midY + unitPerp[1] * offsetDistance
+    ];
 
-// Perpendicular vector (normal to spine)
-const spineNormal = [
-    -spineDirection[1],  // -dy
-    spineDirection[0]    // dx
-];
+    // Build second spine in same orientation as first spine
+    const leftLength = calculateSpineLengthInDirection(
+        secondMidpoint,
+        [-spineDirection[0], -spineDirection[1]],
+        boundaryCoords,
+        boundaryBuffer
+    );
 
-// Normalize perpendicular vector
-const normalLength = Math.sqrt(spineNormal[0]**2 + spineNormal[1]**2);
-const unitNormal = [spineNormal[0] / normalLength, spineNormal[1] / normalLength];
+    const rightLength = calculateSpineLengthInDirection(
+        secondMidpoint,
+        spineDirection,
+        boundaryCoords,
+        boundaryBuffer
+    );
 
-// Offset the midpoint by some distance (e.g. 20m = ~0.00018 degrees)
-const offsetDistance = 0.00018;
-const secondMidpoint = [
-    (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2 + unitNormal[0] * offsetDistance,
-    (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2 + unitNormal[1] * offsetDistance
-];
-        }
-    }
+    const spineStart = [
+        secondMidpoint[0] - spineDirection[0] * leftLength,
+        secondMidpoint[1] - spineDirection[1] * leftLength
+    ];
 
-    // 2. Create second spine road from midpoint toward farthest edge
-    // Reuse spineDirection from earlier in function (already set correctly)
-const leftLength = calculateSpineLengthInDirection(
-    secondMidpoint,
-    [-spineDirection[0], -spineDirection[1]],
-    boundaryCoords,
-    boundaryBuffer
-);
-
-const rightLength = calculateSpineLengthInDirection(
-    secondMidpoint,
-    spineDirection,
-    boundaryCoords,
-    boundaryBuffer
-);
-
-const spineStart = [
-    secondMidpoint[0] - spineDirection[0] * leftLength,
-    secondMidpoint[1] - spineDirection[1] * leftLength
-];
-
-const spineEnd = [
-    secondMidpoint[0] + spineDirection[0] * rightLength,
-    secondMidpoint[1] + spineDirection[1] * rightLength
-];
+    const spineEnd = [
+        secondMidpoint[0] + spineDirection[0] * rightLength,
+        secondMidpoint[1] + spineDirection[1] * rightLength
+    ];
 
     const spineLine = [spineStart, spineEnd];
     const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
 
-    let secondSpineRoads = [];
+    if (!spinePolygon) return [];
 
-    if (spinePolygon) {
-        // Create the spine road feature
-        const spineRoadFeature = {
-            type: 'Feature',
-            geometry: spinePolygon,
-            properties: { type: 'spine-road' }
-        };
+    const spineRoadFeature = {
+        type: 'Feature',
+        geometry: spinePolygon,
+        properties: { type: 'spine-road' }
+    };
 
-        secondSpineRoads.push(spineRoadFeature);
-        console.log('Second spine road created');
+    // Generate homes along the second spine
+    generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
 
-        // 3. Generate houses along the second spine
-        generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
-
-        console.log('Added houses along second spine, total houses now:', houses.length);
-    }
-
-    return secondSpineRoads;
+    return [spineRoadFeature];
 }
-
 // Helper functions
 function calculateSpineLengthInDirection(startPoint, direction, boundaryCoords, buffer) {
     let maxLength = 0;
