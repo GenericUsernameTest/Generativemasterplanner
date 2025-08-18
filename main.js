@@ -449,9 +449,22 @@ function addSecondSpine(boundaryCoords, firstSpineLine) {
 const midX = (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2;
 const midY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
-const perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
-const inset = 0.000015; // ~15m clearance from boundary
+// 1. Get perpendicular direction (90° rotated vector)
+let perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
+const inset = 0.00012; // ~12m clearance from boundary
 
+// 2. Test direction: is perp pointing INTO the polygon?
+const testPoint = [
+  midX + perp[0] * 0.0001,
+  midY + perp[1] * 0.0001
+];
+
+// 3. If the test point is *outside*, flip perp direction
+if (!isPointInPolygon(testPoint, boundaryCoords)) {
+  perp = [-perp[0], -perp[1]];
+}
+
+// 4. Now offset correctly
 const hitPoint = [
   midX + perp[0] * inset,
   midY + perp[1] * inset
