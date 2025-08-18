@@ -319,7 +319,7 @@ if (accessRoadPolygon) {
         generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
 
         // Generate second spine from this first spine
-        const secondSpineRoads = addSecondSpine(boundaryCoords, spineLine, closestEdge.direction);
+        const secondSpineRoads = addSecondSpine(boundaryCoords, spineLine, closestEdge);
         if (secondSpineRoads && secondSpineRoads.length > 0) {
             spineRoads.push(...secondSpineRoads);
         }
@@ -409,7 +409,7 @@ function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     const spineDir = [spineDx / spineLength, spineDy / spineLength];
 
     let bestEdge = null;
-    let bestAlignment = -1;
+    let bestOpposition = 1; // we want the most negative (closest to -1)
 
     for (let i = 0; i < boundaryCoords.length - 1; i++) {
         const a = boundaryCoords[i];
@@ -420,11 +420,10 @@ function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
         const length = Math.sqrt(dx * dx + dy * dy);
         const dir = [dx / length, dy / length];
 
-        // Take absolute dot product to find alignment (1 = parallel, 0 = perpendicular)
-        const dot = Math.abs(spineDir[0] * dir[0] + spineDir[1] * dir[1]);
+        const dot = spineDir[0] * dir[0] + spineDir[1] * dir[1]; // no abs here!
 
-        if (dot > bestAlignment) {
-            bestAlignment = dot;
+        if (dot < bestOpposition) {
+            bestOpposition = dot;
             bestEdge = {
                 start: a,
                 end: b,
@@ -437,68 +436,49 @@ function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     return bestEdge;
 }
 
-function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
+function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineEdge) {
     const spineWidth = 0.000045;
     const boundaryBuffer = 0.000050;
 
-    // 🔁 Use first spine's direction
-    const secondEdge = findClosestBoundaryEdge(hitPoint, boundaryCoords);
-if (!secondEdge) return [];
-const spineDirection = secondEdge.direction;
-
-    // ⬛ 1. Find midpoint of first spine
+    // 🔁 Get the direction and midpoint of first spine
+    const spineDirection = firstSpineEdge.direction;
     const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
     const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
 
-    // ⬛ 2. Get perpendicular vector across the site
-    const perp = [-spineDirection[1], spineDirection[0]];
-    const perpLength = Math.sqrt(perp[0] ** 2 + perp[1] ** 2);
-    const unitPerp = [perp[0] / perpLength, perp[1] / perpLength];
+    // 🔁 Get the opposite boundary edge
+    const oppositeEdge = findOppositeBoundaryEdge(firstSpineEdge, boundaryCoords);
+    if (!oppositeEdge) return [];
 
-    // ⬛ 3. Raycast out from midpoint across the site to find the opposite edge
-    let step = 0.00005;
-    let maxDistance = 0.005;
-    let hitPoint = null;
+    // 🟢 Use midpoint of the opposite edge
+    const hitPoint = [
+        (oppositeEdge.start[0] + oppositeEdge.end[0]) / 2,
+        (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2
+    ];
 
-    for (let dist = step; dist < maxDistance; dist += step) {
-        const testPoint = [
-            midX + unitPerp[0] * dist,
-            midY + unitPerp[1] * dist
-        ];
-        if (!isPointInPolygon(testPoint, boundaryCoords)) {
-            hitPoint = [
-                midX + unitPerp[0] * (dist - boundaryBuffer),
-                midY + unitPerp[1] * (dist - boundaryBuffer)
-            ];
-            break;
-        }
-    }
+    const edgeDirection = oppositeEdge.direction;
 
-    if (!hitPoint) return [];
-
-    // ⬛ 4. Create second spine from hitPoint in same direction as first spine
     const leftLength = calculateSpineLengthInDirection(
         hitPoint,
-        [-spineDirection[0], -spineDirection[1]],
+        [-edgeDirection[0], -edgeDirection[1]],
         boundaryCoords,
         boundaryBuffer
     );
 
     const rightLength = calculateSpineLengthInDirection(
         hitPoint,
-        spineDirection,
+        edgeDirection,
         boundaryCoords,
         boundaryBuffer
     );
 
     const spineStart = [
-        hitPoint[0] - spineDirection[0] * leftLength,
-        hitPoint[1] - spineDirection[1] * leftLength
+        hitPoint[0] - edgeDirection[0] * leftLength,
+        hitPoint[1] - edgeDirection[1] * leftLength
     ];
 
     const spineEnd = [
-        hitPoint[0] + spineDirection[0] * rightLength,
-        hitPoint[1] + spineDirection[1] * rightLength
+        hitPoint[0] + edgeDirection[0] * rightLength,
+        hitPoint[1] + edgeDirection[1] * rightLength
     ];
 
     const spineLine = [spineStart, spineEnd];
@@ -513,6 +493,7 @@ const spineDirection = secondEdge.direction;
         properties: { type: 'spine-road' }
     }];
 }
+
 // Helper functions
 function calculateSpineLengthInDirection(startPoint, direction, boundaryCoords, buffer) {
     let maxLength = 0;
