@@ -262,10 +262,13 @@ function generateHousesAlongRoads() {
         // Convert access road to polygon
         const accessRoadPolygon = createSpineRoadPolygon(coords, 0.000072); // 8m width
 
-        if (accessRoadPolygon) {
-            road.geometry = accessRoadPolygon;
-            road.properties = { type: 'access-road' };
-        }
+if (accessRoadPolygon) {
+    spineRoads.push({
+        type: 'Feature',
+        geometry: accessRoadPolygon,
+        properties: { type: 'access-road' }
+    });
+}
 
         const accessEndPoint = coords[coords.length - 1];
 
