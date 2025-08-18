@@ -346,7 +346,7 @@ function generateHousesAlongRoads() {
                     !isPointOnAccessRoad(housePoint, coords, 0.00008)) {
                     
                     console.log('Creating house at angle:', spineAngle * 180 / Math.PI, 'degrees');
-                    const house = createRotatedHouse(houseX, houseY, houseWidth, houseLength, spineAngle);
+                    const house = createPerfectSquareHouse(houseX, houseY, houseWidth, houseLength);
                     
                     if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
                         houses.push({
