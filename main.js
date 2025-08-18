@@ -433,7 +433,10 @@ function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
     // Midpoint of first spine
     const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
     const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
-
+// ✅ Add this check here
+if (!isPointInPolygon(secondMidpoint, boundaryCoords)) {
+    return []; // Don't add second spine if midpoint is outside the site
+}
     // Vector perpendicular to first spine
     const perp = [-firstSpineDirection[1], firstSpineDirection[0]];
     const perpLength = Math.sqrt(perp[0] ** 2 + perp[1] ** 2);
