@@ -346,8 +346,8 @@ if (accessRoadPolygon) {
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     const houseSpacing = 0.000063;
     const rowOffset = 0.00008;
-    const houseWidth = 0.000045;
-    const houseLength = 0.000045;
+    const houseWidth = 0.000153;  // ≈ 11 meters (width = across the spine)
+    const houseLength = 0.000063; // ≈ 7 meters (length = along the spine)
     const houseHeight = 4;
 
     const spineDirection = [
