@@ -18,16 +18,16 @@ if (mapContainer) {
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 console.log('🗺️ Access token set:', mapboxgl.accessToken.substring(0, 20) + '...');
 
-// Try to get saved view from localStorage (but handle errors)
 let savedView = null;
+
 try {
-    const savedViewStr = localStorage.getItem('mapView');
-    if (savedViewStr) {
-        savedView = JSON.parse(savedViewStr);
-        console.log('🗺️ Saved view loaded:', savedView);
-    }
+  const savedViewStr = localStorage.getItem('mapView');
+  if (savedViewStr) {
+    savedView = JSON.parse(savedViewStr);
+    console.log('🗺️ Saved view loaded:', savedView);
+  }
 } catch (e) {
-    console.log('🗺️ No saved view or localStorage error:', e.message);
+  console.log('🗺️ No saved view or localStorage error:', e.message);
 }
 
 console.log('🗺️ Creating map with config:', {
@@ -38,10 +38,10 @@ console.log('🗺️ Creating map with config:', {
 });
 
 const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-    center: savedView?.center || [-0.1278, 51.5074],
-    zoom: savedView?.zoom || 15
+  container: 'map',
+  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
+  center: savedView?.center || [-0.1278, 51.5074], // fallback to London
+  zoom: savedView?.zoom || 15
 });
 
 console.log('🗺️ Map object created:', !!map);
