@@ -349,8 +349,8 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
       const houseType = {
     width: 11,
     length: 7,
-    setbackLeft: 5,
-    setbackRight: 5,
+    setbackLeft: 1,
+    setbackRight: 1,
     setbackFront: 3,
     setbackBack: 3
   };
@@ -382,7 +382,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   ];
 
   // Calculate spacing including setbacks between houses
-const houseSpacing = dimensions.lengthDeg + dimensions.setbackFrontDeg + dimensions.setbackBackDeg;
+const houseSpacing = dimensions.lengthDeg + dimensions.setbackLeftDeg + dimensions.setbackRightDeg;
     
 const numHouses = Math.floor(totalSpineLength / houseSpacing);
 
