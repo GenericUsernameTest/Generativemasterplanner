@@ -386,12 +386,12 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   // Calculate spacing including setbacks between houses
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
 
-  const numHouses = Math.floor(totalSpineLength / houseSpacing);
+const numHouses = Math.floor(totalSpineLength / houseSpacing);
 
-  for (let i = 0; i <= numHouses; i++) {
-    const t = i / Math.max(numHouses, 1);
-    const spineX = spineLine[0][0] + t * spineDirection[0];
-    const spineY = spineLine[0][1] + t * spineDirection[1];
+for (let i = 0; i < numHouses; i++) {
+  const offsetAlong = i * houseSpacing;
+  const spineX = spineLine[0][0] + spineDirection[0] * (offsetAlong / totalSpineLength) * totalSpineLength;
+  const spineY = spineLine[0][1] + spineDirection[1] * (offsetAlong / totalSpineLength) * totalSpineLength;
 
     [-1, 1].forEach(side => {
 const halfRoadWidthDeg = spineWidth / 2;
