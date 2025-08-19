@@ -427,15 +427,6 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
           }
         });
       }
- 
-
-houses.push({
-  type: 'Feature',
-  geometry: house,
-  properties: {
-    height: houseHeight
-  }
-});
     
             
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
