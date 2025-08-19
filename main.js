@@ -107,55 +107,65 @@ map.on('load', function() {
 
         console.log('🗺️ ✅ All sources added');
 
-        // Add layers
-        map.addLayer({
-            id: 'site-boundary-fill',
-            type: 'fill',
-            source: 'site-boundary',
-            paint: { 'fill-color': '#3498db', 'fill-opacity': 0.1 }
-        });
+      // 🔷 1. Site boundary fill
+map.addLayer({
+    id: 'site-boundary-fill',
+    type: 'fill',
+    source: 'site-boundary',
+    paint: {
+        'fill-color': '#3498db',
+        'fill-opacity': 0.1
+    }
+});
 
-        map.addLayer({
-            id: 'site-boundary-outline',
-            type: 'line',
-            source: 'site-boundary',
-            paint: { 'fill-color': '#3498db', 'line-width': 2 }
-        });
+// 🔷 2. Site boundary outline (line layer)
+map.addLayer({
+    id: 'site-boundary-outline',
+    type: 'line',
+    source: 'site-boundary',
+    paint: {
+        'line-color': '#3498db',
+        'line-width': 2
+    }
+});
 
-        map.addLayer({
-            id: 'access-road-polygons',
-            type: 'fill',
-            source: 'access-roads',
-            filter: ['==', ['get', 'type'], 'access-road'],
-            paint: {
-                'fill-color': '#7f8c8d',
-                'fill-opacity': 1.0
-            }
-        });
+// 🛣️ 3. Access road polygons
+map.addLayer({
+    id: 'access-road-polygons',
+    type: 'fill',
+    source: 'access-roads',
+    filter: ['==', ['get', 'type'], 'access-road'],
+    paint: {
+        'fill-color': '#7f8c8d',
+        'fill-opacity': 1.0
+    }
+});
 
-        map.addLayer({
-            id: 'spine-roads',
-            type: 'fill',
-            source: 'access-roads',
-            filter: ['==', ['get', 'type'], 'spine-road'],
-            paint: {
-                'fill-color': '#7f8c8d',
-                'fill-opacity': 1.0
-            }
-        });
+// 🛣️ 4. Spine roads
+map.addLayer({
+    id: 'spine-roads',
+    type: 'fill',
+    source: 'access-roads',
+    filter: ['==', ['get', 'type'], 'spine-road'],
+    paint: {
+        'fill-color': '#7f8c8d',
+        'fill-opacity': 1.0
+    }
+});
 
-        map.addLayer({
-            id: 'houses',
-            type: 'fill-extrusion',
-            source: 'houses',
-            paint: {
-                'fill-extrusion-color': '#e74c3c',
-                'fill-extrusion-height': ['get', 'height'],
-                'fill-extrusion-opacity': 1.0
-            }
-        });
+// 🏠 5. Houses (3D extrusion)
+map.addLayer({
+    id: 'houses',
+    type: 'fill-extrusion',
+    source: 'houses',
+    paint: {
+        'fill-extrusion-color': '#e74c3c',
+        'fill-extrusion-height': ['get', 'height'],
+        'fill-extrusion-opacity': 1.0
+    }
+});
 
-        console.log('🗺️ ✅ All layers added successfully');
+console.log('🗺️ ✅ All layers added successfully');
         
     } catch (error) {
         console.error('🗺️ ❌ Error setting up map sources/layers:', error);
