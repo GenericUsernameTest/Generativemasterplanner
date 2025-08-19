@@ -354,15 +354,15 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackBack: 3
   };
 
-  const dimensions = {
+const dimensions = {
     widthDeg: metersToDegrees(houseType.width, lat).lng,
-    lengthDeg: metersToDegrees(houseType.length, lat).lat,
-    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
-    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
+    lengthDeg: metersToDegrees(houseType.length, lat).lng,
+    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
+    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
   };
 
   const houseGapMeters = 4;
-  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
+  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
   const houseHeight = 4;
 
   // Vector along the spine
@@ -384,7 +384,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
 
     [-1, 1].forEach(side => {
       const sideClearanceMeters = 1.5;
-      const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lat;
+      const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lng;
 
       const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
 
