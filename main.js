@@ -563,11 +563,9 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
-    // Create perfect rectangular house that rotates to match spine angle
-const halfWidth = dimensions.widthDeg / 2;
-const halfLength = dimensions.lengthDeg / 2;
+    const halfWidth = width / 2;
+    const halfLength = length / 2;
     
-    // Create corners as a perfect rectangle (5m x 5m)
     const corners = [
         [-halfLength, -halfWidth],
         [halfLength, -halfWidth], 
@@ -576,12 +574,10 @@ const halfLength = dimensions.lengthDeg / 2;
         [-halfLength, -halfWidth]
     ];
     
-    // Apply rotation transformation
     const cosAngle = Math.cos(angle);
     const sinAngle = Math.sin(angle);
     
     const rotatedCorners = corners.map(([x, y]) => {
-        // Rotate each corner around the center
         const rotatedX = x * cosAngle - y * sinAngle;
         const rotatedY = x * sinAngle + y * cosAngle;
         
