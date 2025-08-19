@@ -398,13 +398,13 @@ const dimensions = {
           isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
         )
       ) {
-const house = createRotatedHouse(
-  houseX,
-  houseY,
-  dimensions.lengthDeg,   
-  dimensions.widthDeg,    
-  spineAngle
-);
+const corners = [
+  [-halfWidth, -halfLength],
+  [halfWidth, -halfLength], 
+  [halfWidth, halfLength],
+  [-halfWidth, halfLength],
+  [-halfWidth, -halfLength]
+];
         if (
           house &&
           house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))
