@@ -563,11 +563,11 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   };
 
   const dimensions = {
-    widthDeg: metersToDegrees(houseType.width, lat).lng,
-    lengthDeg: metersToDegrees(houseType.length, lat).lat,
-    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
-    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
-  };
+  widthDeg: metersToDegrees(houseType.width, lat).lng,
+  lengthDeg: metersToDegrees(houseType.length, lat).lng,
+  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
+  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
+};
 
   console.log('House dimensions in degrees:', dimensions);
 
