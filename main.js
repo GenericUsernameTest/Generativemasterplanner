@@ -398,11 +398,11 @@ const dimensions = {
           isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
         )
       ) {
-   const house = createRotatedHouse(
+const house = createRotatedHouse(
   houseX,
   houseY,
-  dimensions.widthDeg,    // was dimensions.lengthDeg
-  dimensions.lengthDeg,   // was dimensions.widthDeg
+  dimensions.lengthDeg,   
+  dimensions.widthDeg,    
   spineAngle
 );
         if (
