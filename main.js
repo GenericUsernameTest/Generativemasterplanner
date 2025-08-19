@@ -354,7 +354,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackBack: 3
   };
 
-const dimensions = {
+  const dimensions = {
     widthDeg: metersToDegrees(houseType.width, lat).lng,
     lengthDeg: metersToDegrees(houseType.length, lat).lng,
     setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
@@ -365,7 +365,6 @@ const dimensions = {
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
   const houseHeight = 4;
 
-  // Vector along the spine
   const spineDx = spineLine[1][0] - spineLine[0][0];
   const spineDy = spineLine[1][1] - spineLine[0][1];
   const spineLength = Math.sqrt(spineDx ** 2 + spineDy ** 2);
@@ -373,7 +372,7 @@ const dimensions = {
 
   const unitDirection = [spineDx / spineLength, spineDy / spineLength];
   const perpDirection = [-unitDirection[1], unitDirection[0]];
-  const houseAngle = Math.atan2(perpDirection[1], perpDirection[0]);
+  const spineAngle = Math.atan2(spineDy, spineDx);
 
   const numHouses = Math.floor(spineLength / houseSpacing);
 
@@ -385,44 +384,18 @@ const dimensions = {
     [-1, 1].forEach(side => {
       const sideClearanceMeters = 1.5;
       const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lng;
-
       const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
 
       const houseX = spineX + perpDirection[0] * side * offsetDistance;
       const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
-      if (
-        isPointInPolygon(housePoint, boundaryCoords) &&
-        !accessRoads.some(road =>
-          isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
-        )
-      ) {
-const corners = [
-  [-halfWidth, -halfLength],
-  [halfWidth, -halfLength], 
-  [halfWidth, halfLength],
-  [-halfWidth, halfLength],
-  [-halfWidth, -halfLength]
-];
-        if (
-          house &&
-          house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))
-        ) {
-          houses.push({
-            type: 'Feature',
-            geometry: house,
-            properties: {
-              type: 'house',
-              id: houses.length + 1,
-              height: houseHeight
-            }
-          });
-        }
-      }
-    });
-  }
-}
+      if (isPointInPolygon(housePoint, boundaryCoords)) {
+        const house = createRotatedHouse(
+          houseX,
+          houseY,
+          dimensions.lengthDeg,
+          dimensions.width
 
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     const [start, end] = firstSpineLine;
