@@ -389,10 +389,11 @@ for (let i = 0; i < numHouses; i++) {
   const spineY = spineLine[0][1] + spineDirection[1] * (offsetAlong / totalSpineLength) * totalSpineLength;
 
     [-1, 1].forEach(side => {
-const halfRoadWidthDeg = spineWidth / 2;
-
-const offsetDistance =
-  spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2;
+    const halfRoadWidthDeg = spineWidth / 2;
+    const sideClearanceMeters = 1.5; // or 2, tweak this!
+    const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lat;
+        
+const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
 
 const houseX = spineX + perpDirection[0] * side * offsetDistance;
 const houseY = spineY + perpDirection[1] * side * offsetDistance;
