@@ -1,6 +1,206 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
+// Add this debugging code at the very beginning of your script, before the map creation:
+
+console.log('🗺️ Starting map initialization...');
+console.log('🗺️ Mapbox GL JS available:', typeof mapboxgl !== 'undefined');
+console.log('🗺️ Mapbox Draw available:', typeof MapboxDraw !== 'undefined');
+
+// Check if the map container exists
+const mapContainer = document.getElementById('map');
+console.log('🗺️ Map container found:', !!mapContainer);
+if (mapContainer) {
+    console.log('🗺️ Container dimensions:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
+}
+
+// Mapbox Configuration with debugging
+mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
+console.log('🗺️ Access token set:', mapboxgl.accessToken.substring(0, 20) + '...');
+
+// Try to get saved view from localStorage (but handle errors)
+let savedView = null;
+try {
+    const savedViewStr = localStorage.getItem('mapView');
+    if (savedViewStr) {
+        savedView = JSON.parse(savedViewStr);
+        console.log('🗺️ Saved view loaded:', savedView);
+    }
+} catch (e) {
+    console.log('🗺️ No saved view or localStorage error:', e.message);
+}
+
+console.log('🗺️ Creating map with config:', {
+    container: 'map',
+    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
+    center: savedView?.center || [-0.1278, 51.5074],
+    zoom: savedView?.zoom || 15
+});
+
+const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
+    center: savedView?.center || [-0.1278, 51.5074],
+    zoom: savedView?.zoom || 15
+});
+
+console.log('🗺️ Map object created:', !!map);
+
+// Enhanced error handling
+map.on('error', function(e) {
+    console.error('🗺️ Map error:', e);
+    console.error('🗺️ Error type:', e.error?.status);
+    console.error('🗺️ Error message:', e.error?.message);
+    
+    if (e.error?.status === 401) {
+        console.log('🗺️ Style is private or access token is invalid');
+        showNotification('Map style error - checking permissions', 'error');
+        
+        // Try falling back to a public style
+        console.log('🗺️ Trying fallback to public style...');
+        map.setStyle('mapbox://styles/mapbox/streets-v12');
+        
+    } else if (e.error?.status === 404) {
+        console.log('🗺️ Style not found - using fallback');
+        showNotification('Custom style not found - using default', 'warning');
+        map.setStyle('mapbox://styles/mapbox/streets-v12');
+        
+    } else {
+        console.log('🗺️ Other map error:', e.error?.message);
+        showNotification('Map error: ' + (e.error?.message || 'Unknown error'), 'error');
+    }
+});
+
+// Add load event listener with detailed logging
+map.on('load', function() {
+    console.log('🗺️ ✅ Map loaded successfully!');
+    console.log('🗺️ Map center:', map.getCenter());
+    console.log('🗺️ Map zoom:', map.getZoom());
+    console.log('🗺️ Map style:', map.getStyle().name);
+    
+    // Test if we can add a simple source
+    try {
+        map.addSource('test-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+        console.log('🗺️ ✅ Test source added successfully');
+        
+        // Continue with your original map.on('load') code here...
+        console.log('🗺️ Adding original sources and layers...');
+        
+        // Add sources
+        map.addSource('site-boundary', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+
+        map.addSource('access-roads', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+
+        map.addSource('houses', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+        });
+
+        console.log('🗺️ ✅ All sources added');
+
+        // Add layers
+        map.addLayer({
+            id: 'site-boundary-fill',
+            type: 'fill',
+            source: 'site-boundary',
+            paint: { 'fill-color': '#3498db', 'fill-opacity': 0.1 }
+        });
+
+        map.addLayer({
+            id: 'site-boundary-outline',
+            type: 'line',
+            source: 'site-boundary',
+            paint: { 'fill-color': '#3498db', 'line-width': 2 }
+        });
+
+        map.addLayer({
+            id: 'access-road-polygons',
+            type: 'fill',
+            source: 'access-roads',
+            filter: ['==', ['get', 'type'], 'access-road'],
+            paint: {
+                'fill-color': '#7f8c8d',
+                'fill-opacity': 1.0
+            }
+        });
+
+        map.addLayer({
+            id: 'spine-roads',
+            type: 'fill',
+            source: 'access-roads',
+            filter: ['==', ['get', 'type'], 'spine-road'],
+            paint: {
+                'fill-color': '#7f8c8d',
+                'fill-opacity': 1.0
+            }
+        });
+
+        map.addLayer({
+            id: 'houses',
+            type: 'fill-extrusion',
+            source: 'houses',
+            paint: {
+                'fill-extrusion-color': '#e74c3c',
+                'fill-extrusion-height': ['get', 'height'],
+                'fill-extrusion-opacity': 1.0
+            }
+        });
+
+        console.log('🗺️ ✅ All layers added successfully');
+        
+    } catch (error) {
+        console.error('🗺️ ❌ Error setting up map sources/layers:', error);
+    }
+});
+
+// Add style load event
+map.on('style.load', function() {
+    console.log('🗺️ ✅ Style loaded successfully');
+});
+
+// Add style error event
+map.on('styleimagemissing', function(e) {
+    console.log('🗺️ Missing style image:', e.id);
+});
+
+// Test that other libraries are available
+console.log('🗺️ Testing drawing tools...');
+try {
+    const draw = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: { 
+            polygon: false, 
+            line_string: false,
+            point: false,
+            trash: false 
+        }
+    });
+    
+    map.addControl(draw);
+    console.log('🗺️ ✅ Drawing tools initialized successfully');
+    
+    // Make draw available globally for debugging
+    window.debugDraw = draw;
+    
+} catch (error) {
+    console.error('🗺️ ❌ Error initializing drawing tools:', error);
+}
+
+// Test notification system
+console.log('🗺️ Testing notification system...');
+setTimeout(() => {
+    showNotification('Map debugging active - check console for details', 'info');
+}, 2000);
+
 // Try to get saved view from localStorage
 const savedView = JSON.parse(localStorage.getItem('mapView'));
 
