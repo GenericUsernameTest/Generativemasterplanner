@@ -346,74 +346,77 @@ if (accessRoadPolygon) {
 
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
+
   const houseType = {
-    width: 7,
-    length: 7,
+    width: 7,            // perpendicular to road
+    length: 7,           // along road
     setbackFront: 2,
     setbackBack: 2
   };
-const dimensions = {
-  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
-  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
-};
-  const houseGapMeters = 4;  // Increased from 4 to 8
-  const houseSpacing = metersToDegrees(houseType.length + houseGapMeters, lat).lat;
+
+  // All angular values must use consistent units (deg) and direction mapping
+  const dimensions = {
+    widthDeg: metersToDegrees(houseType.width, lat).lng,         // across road (X)
+    lengthDeg: metersToDegrees(houseType.length, lat).lat,       // along road (Y)
+    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
+    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
+  };
+
+  const houseGapMeters = 4;
+  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
   const houseHeight = 4;
-  
+
   const spineDx = spineLine[1][0] - spineLine[0][0];
   const spineDy = spineLine[1][1] - spineLine[0][1];
   const spineLength = Math.sqrt(spineDx ** 2 + spineDy ** 2);
   if (spineLength === 0) return;
-  
+
   const unitDirection = [spineDx / spineLength, spineDy / spineLength];
   const perpDirection = [-unitDirection[1], unitDirection[0]];
   const spineAngle = Math.atan2(unitDirection[1], unitDirection[0]);
-  
-  // Add start buffer
-  const startBufferMeters = 15;
-  const startBufferDeg = metersToDegrees(startBufferMeters, lat).lng;
-  
+
+  const startBufferDeg = metersToDegrees(15, lat).lng;
   const numHouses = Math.floor((spineLength - startBufferDeg) / houseSpacing);
-  
+
   for (let i = 0; i < numHouses; i++) {
-    const offsetAlong = startBufferDeg + (i * houseSpacing);
+    const offsetAlong = startBufferDeg + i * houseSpacing;
     const spineX = spineLine[0][0] + unitDirection[0] * offsetAlong;
     const spineY = spineLine[0][1] + unitDirection[1] * offsetAlong;
-    
-    [-1, 1].forEach(side => {
-      const sideClearanceMeters = 2;  // Increased clearance
-      const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lng;
-      const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
-      
+
+    for (let side of [-1, 1]) {
+      const sideClearanceDeg = metersToDegrees(2, lat).lng;
+
+      const offsetDistance =
+        spineWidth / 2 +
+        dimensions.setbackFrontDeg +
+        dimensions.widthDeg / 2 +
+        sideClearanceDeg;
+
       const houseX = spineX + perpDirection[0] * side * offsetDistance;
       const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
-if (!isPointInPolygon(housePoint, boundaryCoords)) {
-  return; // ❌ NO!
-}
+      if (!isPointInPolygon(housePoint, boundaryCoords)) continue;
 
-      // Check if too close to access roads
-      const tooCloseToAccessRoad = accessRoads.some(road => {
-        if (road.geometry?.coordinates) {
-          return isPointOnAccessRoad(housePoint, road.geometry.coordinates, 0.00015);
-        }
-        return false;
-      });
+      const tooClose = accessRoads.some(road =>
+        road.geometry?.coordinates &&
+        isPointOnAccessRoad(housePoint, road.geometry.coordinates, 0.00015)
+      );
 
-      if (tooCloseToAccessRoad) {
-        return; // Skip this house
-      }
+      if (tooClose) continue;
 
-const house = createRotatedHouse(
-  houseX,
-  houseY,
-  houseType.length,  // meters
-  houseType.width,   // meters
-  spineAngle
-);
+      const house = createRotatedHouse(
+        houseX,
+        houseY,
+        houseType.length,
+        houseType.width,
+        spineAngle
+      );
 
-          if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
+      if (
+        house &&
+        house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))
+      ) {
         houses.push({
           type: 'Feature',
           geometry: house,
@@ -422,7 +425,7 @@ const house = createRotatedHouse(
           }
         });
       }
-    });
+    }
   }
 }
     
