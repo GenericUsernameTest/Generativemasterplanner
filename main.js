@@ -349,7 +349,7 @@ function generateHousesAlongRoads() {
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
 
-    const houseGapMeters = 2;  // Set gap between homes (you can make this user-controlled too!)
+const plotLengthMeters = houseType.length + spacing.front + spacing.back;
     
   const houseType = {
     width: 11,
@@ -387,7 +387,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   ];
 
   // Calculate spacing including setbacks between houses
-  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
+  const houseSpacing = metersToDegrees(plotLengthMeters, lat).lat;
 
   const numHouses = Math.floor(totalSpineLength / houseSpacing);
 
@@ -399,8 +399,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     [-1, 1].forEach(side => {
 const halfRoadWidthDeg = spineWidth / 2;
 
-const offsetDistance =
-  halfRoadWidthDeg + dimensions.setbackFrontDeg + dimensions.widthDeg / 2;
+const offsetDistance = metersToDegrees(spacing.front + houseType.width / 2, lat).lat;
 
 const houseX = spineX + perpDirection[0] * side * offsetDistance;
 const houseY = spineY + perpDirection[1] * side * offsetDistance;
