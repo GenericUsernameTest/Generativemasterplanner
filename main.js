@@ -390,13 +390,14 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
       const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
-      if (isPointInPolygon(housePoint, boundaryCoords)) {
-        const house = createRotatedHouse(
-          houseX,
-          houseY,
-          dimensions.lengthDeg,
-          dimensions.width
-
+    const house = createRotatedHouse(
+    houseX,
+    houseY,
+    dimensions.lengthDeg,
+    dimensions.widthDeg,
+    spineAngle
+);
+            
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     const [start, end] = firstSpineLine;
     const spineDx = end[0] - start[0];
