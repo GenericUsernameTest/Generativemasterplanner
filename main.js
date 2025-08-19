@@ -389,10 +389,9 @@ const dimensions = {
       const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
-      // Check if house center is inside boundary
-      if (!isPointInPolygon(housePoint, boundaryCoords)) {
-        return; // Skip this house
-      }
+if (!isPointInPolygon(housePoint, boundaryCoords)) {
+  return; // ❌ NO!
+}
 
       // Check if too close to access roads
       const tooCloseToAccessRoad = accessRoads.some(road => {
@@ -406,11 +405,11 @@ const dimensions = {
         return; // Skip this house
       }
 
-      const house = createRotatedHouse(
+const house = createRotatedHouse(
   houseX,
   houseY,
-  houseType.width,
-  houseType.length,
+  houseType.length,  // meters
+  houseType.width,   // meters
   spineAngle
 );
 
