@@ -358,7 +358,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
   setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
 };
-  const houseGapMeters = 8;  // Increased from 4 to 8
+  const houseGapMeters = 4;  // Increased from 4 to 8
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
   const houseHeight = 4;
   
@@ -481,7 +481,7 @@ const midY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
 // 1. Get perpendicular direction (90° rotated vector)
 let perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
-const inset = 0.00030; // ~30m clearance from boundary
+const inset = 0.00023; // ~23m clearance from boundary
 
 // 2. Test direction: is perp pointing INTO the polygon?
 const testPoint = [
