@@ -353,13 +353,11 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackBack: 2
   };
 const dimensions = {
-  widthDeg: metersToDegrees(houseType.width, lat).lng,         // ✅ PERP direction = X = longitude
-  lengthDeg: metersToDegrees(houseType.length, lat).lat,       // ✅ ALONG road = Y = latitude
   setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
   setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
 };
   const houseGapMeters = 4;  // Increased from 4 to 8
-  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
+  const houseSpacing = metersToDegrees(houseType.length + houseGapMeters, lat).lat;
   const houseHeight = 4;
   
   const spineDx = spineLine[1][0] - spineLine[0][0];
@@ -408,14 +406,13 @@ const dimensions = {
         return; // Skip this house
       }
 
-      // Create the house (only once!)
       const house = createRotatedHouse(
-        houseX,
-        houseY,
-        dimensions.lengthDeg,
-        dimensions.widthDeg,
-        spineAngle
-      );
+  houseX,
+  houseY,
+  houseType.width,
+  houseType.length,
+  spineAngle
+);
 
           if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
         houses.push({
