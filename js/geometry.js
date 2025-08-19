@@ -176,4 +176,148 @@ export class GeometryUtils {
         ];
         
         // Apply rotation if specified
-        if (rotationD
+        if (rotationDegrees !== 0) {
+            const radians = rotationDegrees * Math.PI / 180;
+            const cos = Math.cos(radians);
+            const sin = Math.sin(radians);
+            
+            corners = corners.map(corner => [
+                corner[0] * cos - corner[1] * sin,
+                corner[0] * sin + corner[1] * cos
+            ]);
+        }
+        
+        // Translate to center position
+        const coordinates = corners.map(corner => [
+            center[0] + corner[0],
+            center[1] + corner[1]
+        ]);
+        
+        return {
+            type: 'Feature',
+            geometry: {
+                type: 'Polygon',
+                coordinates: [coordinates]
+            },
+            properties: {}
+        };
+    }
+    
+    // Check if point is inside polygon
+    static pointInPolygon(point, polygon) {
+        const coords = polygon.geometry ? polygon.geometry.coordinates[0] : polygon.coordinates[0];
+        const x = point[0];
+        const y = point[1];
+        
+        let inside = false;
+        for (let i = 0, j = coords.length - 2; i < coords.length - 1; j = i++) {
+            const xi = coords[i][0];
+            const yi = coords[i][1];
+            const xj = coords[j][0];
+            const yj = coords[j][1];
+            
+            if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+        
+        return inside;
+    }
+    
+    // Check if polygon is entirely inside another polygon
+    static polygonInPolygon(innerPolygon, outerPolygon) {
+        const innerCoords = innerPolygon.geometry ? innerPolygon.geometry.coordinates[0] : innerPolygon.coordinates[0];
+        
+        // Check if all vertices of inner polygon are inside outer polygon
+        for (let i = 0; i < innerCoords.length - 1; i++) {
+            if (!this.pointInPolygon(innerCoords[i], outerPolygon)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    // Calculate polygon area in square meters
+    static polygonArea(polygon) {
+        const coords = polygon.geometry ? polygon.geometry.coordinates[0] : polygon.coordinates[0];
+        let area = 0;
+        
+        for (let i = 0; i < coords.length - 1; i++) {
+            const j = (i + 1) % (coords.length - 1);
+            area += coords[i][0] * coords[j][1];
+            area -= coords[j][0] * coords[i][1];
+        }
+        
+        area = Math.abs(area) / 2;
+        
+        // Convert from square degrees to square meters (approximate)
+        const metersPerDegree = 111000;
+        return area * metersPerDegree * metersPerDegree;
+    }
+    
+    // Create a buffer around a line (polygon corridor)
+    static bufferLine(line, width) {
+        const coords = line.geometry ? line.geometry.coordinates : line.coordinates;
+        const halfWidth = width / 2;
+        const degreesPerMeter = 1 / 111000;
+        const halfWidthDegrees = halfWidth * degreesPerMeter;
+        
+        const leftSide = [];
+        const rightSide = [];
+        
+        for (let i = 0; i < coords.length - 1; i++) {
+            const start = coords[i];
+            const end = coords[i + 1];
+            
+            // Get direction vector
+            const direction = this.normalize([end[0] - start[0], end[1] - start[1]]);
+            
+            // Get perpendicular vector
+            const perpendicular = this.perpendicular(direction);
+            
+            // Calculate offset points
+            const leftOffset = [
+                start[0] + perpendicular[0] * halfWidthDegrees,
+                start[1] + perpendicular[1] * halfWidthDegrees
+            ];
+            const rightOffset = [
+                start[0] - perpendicular[0] * halfWidthDegrees,
+                start[1] - perpendicular[1] * halfWidthDegrees
+            ];
+            
+            leftSide.push(leftOffset);
+            rightSide.push(rightOffset);
+        }
+        
+        // Add final points
+        const lastIdx = coords.length - 1;
+        const lastStart = coords[lastIdx - 1];
+        const lastEnd = coords[lastIdx];
+        const lastDirection = this.normalize([lastEnd[0] - lastStart[0], lastEnd[1] - lastStart[1]]);
+        const lastPerpendicular = this.perpendicular(lastDirection);
+        
+        leftSide.push([
+            lastEnd[0] + lastPerpendicular[0] * halfWidthDegrees,
+            lastEnd[1] + lastPerpendicular[1] * halfWidthDegrees
+        ]);
+        rightSide.push([
+            lastEnd[0] - lastPerpendicular[0] * halfWidthDegrees,
+            lastEnd[1] - lastPerpendicular[1] * halfWidthDegrees
+        ]);
+        
+        // Create polygon coordinates (left side + reversed right side)
+        const polygonCoords = [...leftSide, ...rightSide.reverse(), leftSide[0]];
+        
+        return {
+            type: 'Feature',
+            geometry: {
+                type: 'Polygon',
+                coordinates: [polygonCoords]
+            },
+            properties: {
+                width: width
+            }
+        };
+    }
+}
