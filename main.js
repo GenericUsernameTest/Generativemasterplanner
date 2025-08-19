@@ -373,7 +373,7 @@ const dimensions = {
 
   const unitDirection = [spineDx / spineLength, spineDy / spineLength];
   const perpDirection = [-unitDirection[1], unitDirection[0]];
-  const spineAngle = Math.atan2(spineDy, spineDx);
+  const houseAngle = Math.atan2(perpDirection[1], perpDirection[0]);
 
   const numHouses = Math.floor(spineLength / houseSpacing);
 
@@ -591,8 +591,8 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
     // Create perfect rectangular house that rotates to match spine angle
-    const halfWidth = width / 2;
-    const halfLength = length / 2;
+const halfWidth = dimensions.widthDeg / 2;
+const halfLength = dimensions.lengthDeg / 2;
     
     // Create corners as a perfect rectangle (5m x 5m)
     const corners = [
