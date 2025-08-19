@@ -364,13 +364,19 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
 
   const houseHeight = 4;
 
-  const spineDirection = [
-    spineLine[1][0] - spineLine[0][0],
-    spineLine[1][1] - spineLine[0][1]
-  ];
+// Direction vector of spine
+const spineDirection = [
+  spineLine[1][0] - spineLine[0][0],
+  spineLine[1][1] - spineLine[0][1]
+];
 
-  const totalSpineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
-  if (totalSpineLength === 0) return;
+// Normalize it to unit length
+const spineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
+const unitDirection = [
+  spineDirection[0] / spineLength,
+  spineDirection[1] / spineLength
+];
+  if (SpineLength === 0) return;
 
   const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
 
