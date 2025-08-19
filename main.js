@@ -344,17 +344,16 @@ if (accessRoadPolygon) {
     console.log('Generated', houses.length, 'houses total with', spineRoads.length, 'spine roads');
 }
 
-// Extract house generation logic into separate function for reuse
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
 
-      const houseType = {
-    width: 5,
+  const houseType = {
+    width: 11,
     length: 7,
     setbackFront: 3,
     setbackBack: 3
   };
-    
+
   const dimensions = {
     widthDeg: metersToDegrees(houseType.width, lat).lng,
     lengthDeg: metersToDegrees(houseType.length, lat).lat,
@@ -362,57 +361,35 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
   };
 
+  const houseGapMeters = 1;
+  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
   const houseHeight = 4;
 
-// Direction vector of spine
-const spineDirection = [
-  spineLine[1][0] - spineLine[0][0],
-  spineLine[1][1] - spineLine[0][1]
-];
+  // Vector along the spine
+  const spineDx = spineLine[1][0] - spineLine[0][0];
+  const spineDy = spineLine[1][1] - spineLine[0][1];
+  const spineLength = Math.sqrt(spineDx ** 2 + spineDy ** 2);
+  if (spineLength === 0) return;
 
-// Normalize it to unit vector
-const spineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
-if (spineLength === 0) return;
+  const unitDirection = [spineDx / spineLength, spineDy / spineLength];
+  const perpDirection = [-unitDirection[1], unitDirection[0]];
+  const spineAngle = Math.atan2(spineDy, spineDx);
 
-const unitDirection = [
-  spineDirection[0] / spineLength,
-  spineDirection[1] / spineLength
-];
+  const numHouses = Math.floor(spineLength / houseSpacing);
 
-// Perpendicular direction for left/right house placement
-const perpDirection = [
-  -unitDirection[1],
-  unitDirection[0]
-];
-
-// Angle used for house rotation
-const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
-
-const perpDirection = [
-  -spineDirection[1] / spineLength,
-  spineDirection[0] / spineLength
-];
-
-  // Calculate spacing including setbacks between houses
-const houseGapMeters = 1;  // distance between homes along the spine
-const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
-    
-const numHouses = Math.floor(totalSpineLength / houseSpacing);
-
-for (let i = 0; i < numHouses; i++) {
-  const offsetAlong = i * houseSpacing;
-  const spineX = spineLine[0][0] + spineDirection[0] * (offsetAlong / totalSpineLength) * totalSpineLength;
-  const spineY = spineLine[0][1] + spineDirection[1] * (offsetAlong / totalSpineLength) * totalSpineLength;
+  for (let i = 0; i < numHouses; i++) {
+    const offsetAlong = i * houseSpacing;
+    const spineX = spineLine[0][0] + unitDirection[0] * offsetAlong;
+    const spineY = spineLine[0][1] + unitDirection[1] * offsetAlong;
 
     [-1, 1].forEach(side => {
-    const halfRoadWidthDeg = spineWidth / 2;
-    const sideClearanceMeters = 1.5; // or 2, tweak this!
-    const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lat;
-        
-const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
+      const sideClearanceMeters = 1.5;
+      const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lat;
 
-const houseX = spineX + perpDirection[0] * side * offsetDistance;
-const houseY = spineY + perpDirection[1] * side * offsetDistance;
+      const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
+
+      const houseX = spineX + perpDirection[0] * side * offsetDistance;
+      const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
       if (
