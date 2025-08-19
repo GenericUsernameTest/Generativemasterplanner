@@ -349,7 +349,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
 
       const houseType = {
-    width: 11,
+    width: 5,
     length: 7,
     setbackFront: 3,
     setbackBack: 3
