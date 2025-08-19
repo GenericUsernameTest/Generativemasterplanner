@@ -71,41 +71,6 @@ map.on('error', function(e) {
     }
 });
 
-// Add load event listener with detailed logging
-map.on('load', function() {
-    console.log('🗺️ ✅ Map loaded successfully!');
-    console.log('🗺️ Map center:', map.getCenter());
-    console.log('🗺️ Map zoom:', map.getZoom());
-    console.log('🗺️ Map style:', map.getStyle().name);
-    
-    // Test if we can add a simple source
-    try {
-        map.addSource('test-source', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-        });
-        console.log('🗺️ ✅ Test source added successfully');
-        
-        // Continue with your original map.on('load') code here...
-        console.log('🗺️ Adding original sources and layers...');
-        
-        // Add sources
-        map.addSource('site-boundary', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-        });
-
-        map.addSource('access-roads', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-        });
-
-        map.addSource('houses', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-        });
-
-        console.log('🗺️ ✅ All sources added');
 
       // 🔷 1. Site boundary fill
 map.addLayer({
@@ -223,18 +188,6 @@ map.on('error', function(e) {
     }
 });
 
-// Drawing tools
-const draw = new MapboxDraw({
-    displayControlsDefault: false,
-    controls: { 
-        polygon: false, 
-        line_string: false,
-        point: false,
-        trash: false 
-    }
-});
-
-map.addControl(draw);
 
 // Application state
 let currentTool = null;
