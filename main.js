@@ -1,181 +1,15 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-// Add this debugging code at t he very beginning of your script, before the map creation:
-
-console.log('🗺️ Starting map initialization...');
-console.log('🗺️ Mapbox GL JS available:', typeof mapboxgl !== 'undefined');
-console.log('🗺️ Mapbox Draw available:', typeof MapboxDraw !== 'undefined');
-
-// Check if the map container exists
-const mapContainer = document.getElementById('map');
-console.log('🗺️ Map container found:', !!mapContainer);
-if (mapContainer) {
-    console.log('🗺️ Container dimensions:', mapContainer.offsetWidth, 'x', mapContainer.offsetHeight);
-}
-
-// Mapbox Configuration with debugging
-mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
-console.log('🗺️ Access token set:', mapboxgl.accessToken.substring(0, 20) + '...');
-
-let savedView = null;
-
-try {
-  const savedViewStr = localStorage.getItem('mapView');
-  if (savedViewStr) {
-    savedView = JSON.parse(savedViewStr);
-    console.log('🗺️ Saved view loaded:', savedView);
-  }
-} catch (e) {
-  console.log('🗺️ No saved view or localStorage error:', e.message);
-}
-
-console.log('🗺️ Creating map with config:', {
-    container: 'map',
-    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-    center: savedView?.center || [-0.1278, 51.5074],
-    zoom: savedView?.zoom || 15
-});
+// Try to get saved view from localStorage
+const savedView = JSON.parse(localStorage.getItem('mapView'));
 
 const map = new mapboxgl.Map({
-  container: 'map',
-  style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-  center: savedView?.center || [-0.1278, 51.5074], // fallback to London
-  zoom: savedView?.zoom || 15
+    container: 'map',
+    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
+    center: savedView?.center || [-0.1278, 51.5074],  // fallback to London
+    zoom: savedView?.zoom || 15                      // fallback zoom
 });
-
-console.log('🗺️ Map object created:', !!map);
-
-// Enhanced error handling
-map.on('error', function(e) {
-    console.error('🗺️ Map error:', e);
-    console.error('🗺️ Error type:', e.error?.status);
-    console.error('🗺️ Error message:', e.error?.message);
-    
-    if (e.error?.status === 401) {
-        console.log('🗺️ Style is private or access token is invalid');
-        showNotification('Map style error - checking permissions', 'error');
-        
-        // Try falling back to a public style
-        console.log('🗺️ Trying fallback to public style...');
-        map.setStyle('mapbox://styles/mapbox/streets-v12');
-        
-    } else if (e.error?.status === 404) {
-        console.log('🗺️ Style not found - using fallback');
-        showNotification('Custom style not found - using default', 'warning');
-        map.setStyle('mapbox://styles/mapbox/streets-v12');
-        
-    } else {
-        console.log('🗺️ Other map error:', e.error?.message);
-        showNotification('Map error: ' + (e.error?.message || 'Unknown error'), 'error');
-    }
-});
-
-
-      // 🔷 1. Site boundary fill
-map.addLayer({
-    id: 'site-boundary-fill',
-    type: 'fill',
-    source: 'site-boundary',
-    paint: {
-        'fill-color': '#3498db',
-        'fill-opacity': 0.1
-    }
-});
-
-// 🔷 2. Site boundary outline (line layer)
-map.addLayer({
-    id: 'site-boundary-outline',
-    type: 'line',
-    source: 'site-boundary',
-    paint: {
-        'line-color': '#3498db',
-        'line-width': 2
-    }
-});
-
-// 🛣️ 3. Access road polygons
-map.addLayer({
-    id: 'access-road-polygons',
-    type: 'fill',
-    source: 'access-roads',
-    filter: ['==', ['get', 'type'], 'access-road'],
-    paint: {
-        'fill-color': '#7f8c8d',
-        'fill-opacity': 1.0
-    }
-});
-
-// 🛣️ 4. Spine roads
-map.addLayer({
-    id: 'spine-roads',
-    type: 'fill',
-    source: 'access-roads',
-    filter: ['==', ['get', 'type'], 'spine-road'],
-    paint: {
-        'fill-color': '#7f8c8d',
-        'fill-opacity': 1.0
-    }
-});
-
-// 🏠 5. Houses (3D extrusion)
-map.addLayer({
-    id: 'houses',
-    type: 'fill-extrusion',
-    source: 'houses',
-    paint: {
-        'fill-extrusion-color': '#e74c3c',
-        'fill-extrusion-height': ['get', 'height'],
-        'fill-extrusion-opacity': 1.0
-    }
-});
-
-console.log('🗺️ ✅ All layers added successfully');
-        
-    } catch (error) {
-        console.error('🗺️ ❌ Error setting up map sources/layers:', error);
-    }
-});
-
-// Add style load event
-map.on('style.load', function() {
-    console.log('🗺️ ✅ Style loaded successfully');
-});
-
-// Add style error event
-map.on('styleimagemissing', function(e) {
-    console.log('🗺️ Missing style image:', e.id);
-});
-
-// Test that other libraries are available
-console.log('🗺️ Testing drawing tools...');
-try {
-    const draw = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: { 
-            polygon: false, 
-            line_string: false,
-            point: false,
-            trash: false 
-        }
-    });
-    
-    map.addControl(draw);
-    console.log('🗺️ ✅ Drawing tools initialized successfully');
-    
-    // Make draw available globally for debugging
-    window.debugDraw = draw;
-    
-} catch (error) {
-    console.error('🗺️ ❌ Error initializing drawing tools:', error);
-}
-
-// Test notification system
-console.log('🗺️ Testing notification system...');
-setTimeout(() => {
-    showNotification('Map debugging active - check console for details', 'info');
-}, 2000);
-
 
 // Error handling
 map.on('error', function(e) {
@@ -188,6 +22,18 @@ map.on('error', function(e) {
     }
 });
 
+// Drawing tools
+const draw = new MapboxDraw({
+    displayControlsDefault: false,
+    controls: { 
+        polygon: false, 
+        line_string: false,
+        point: false,
+        trash: false 
+    }
+});
+
+map.addControl(draw);
 
 // Application state
 let currentTool = null;
@@ -498,193 +344,93 @@ if (accessRoadPolygon) {
     console.log('Generated', houses.length, 'houses total with', spineRoads.length, 'spine roads');
 }
 
-// Replace your generateHousesAlongSpine function with this debug version:
-
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
-  console.log('=== generateHousesAlongSpine CALLED ===');
-  console.log('spineLine:', spineLine);
-  console.log('spineWidth:', spineWidth);
-  console.log('boundaryCoords length:', boundaryCoords.length);
-  
   const lat = map.getCenter().lat;
-  console.log('Current latitude:', lat);
-
   const houseType = {
-    width: 11,
+    width: 7,
     length: 7,
-    setbackFront: 3,
-    setbackBack: 3
+    setbackFront: 2,
+    setbackBack: 2
   };
-
-  const dimensions = {
-  widthDeg: metersToDegrees(houseType.width, lat).lng,
-  lengthDeg: metersToDegrees(houseType.length, lat).lng,
+ const dimensions = {
+  widthDeg: metersToDegrees(houseType.width, lat).lat,         // Width = perpendicular to road
+  lengthDeg: metersToDegrees(houseType.length, lat).lng,       // Length = along the road
   setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
   setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
 };
-
-  console.log('House dimensions in degrees:', dimensions);
-
-  const houseGapMeters = 4;
-  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
+  const houseGapMeters = 4;  // Increased from 4 to 8
+  const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
   const houseHeight = 4;
-
-  console.log('House spacing:', houseSpacing);
-
-  // Vector along the spine
+  
   const spineDx = spineLine[1][0] - spineLine[0][0];
   const spineDy = spineLine[1][1] - spineLine[0][1];
   const spineLength = Math.sqrt(spineDx ** 2 + spineDy ** 2);
+  if (spineLength === 0) return;
   
-  console.log('Spine vector:', {spineDx, spineDy, spineLength});
-  
-  if (spineLength === 0) {
-    console.log('❌ Spine length is 0!');
-    return;
-  }
-
   const unitDirection = [spineDx / spineLength, spineDy / spineLength];
   const perpDirection = [-unitDirection[1], unitDirection[0]];
-  const spineAngle = Math.atan2(spineDy, spineDx);
-
-  console.log('Directions:', {unitDirection, perpDirection, spineAngle});
-
-  const numHouses = Math.floor(spineLength / houseSpacing);
-  console.log('Number of houses to generate:', numHouses);
-
-  if (numHouses === 0) {
-    console.log('❌ No houses to generate - spine too short or spacing too large');
-    console.log('Spine length:', spineLength, 'House spacing:', houseSpacing);
-    return;
-  }
-
-  let housesGenerated = 0;
-
+  const spineAngle = Math.atan2(unitDirection[1], unitDirection[0]);
+  
+  // Add start buffer
+  const startBufferMeters = 15;
+  const startBufferDeg = metersToDegrees(startBufferMeters, lat).lng;
+  
+  const numHouses = Math.floor((spineLength - startBufferDeg) / houseSpacing);
+  
   for (let i = 0; i < numHouses; i++) {
-    console.log(`\n--- Processing house ${i + 1} ---`);
-    
-    const offsetAlong = i * houseSpacing;
+    const offsetAlong = startBufferDeg + (i * houseSpacing);
     const spineX = spineLine[0][0] + unitDirection[0] * offsetAlong;
     const spineY = spineLine[0][1] + unitDirection[1] * offsetAlong;
-
-    console.log('Spine position:', {spineX, spineY, offsetAlong});
-
-    [-1, 1].forEach((side, sideIndex) => {
-      console.log(`  Testing side ${side} (${sideIndex === 0 ? 'left' : 'right'})`);
-      
-      const sideClearanceMeters = 1.5;
-      const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lat;
-
+    
+    [-1, 1].forEach(side => {
+      const sideClearanceMeters = 2;  // Increased clearance
+      const sideClearanceDeg = metersToDegrees(sideClearanceMeters, lat).lng;
       const offsetDistance = spineWidth / 2 + dimensions.setbackFrontDeg + dimensions.widthDeg / 2 + sideClearanceDeg;
-
-      console.log('  Offset distance:', offsetDistance);
-
+      
       const houseX = spineX + perpDirection[0] * side * offsetDistance;
       const houseY = spineY + perpDirection[1] * side * offsetDistance;
       const housePoint = [houseX, houseY];
 
-      console.log('  House center point:', housePoint);
-
-      // Check if point is in boundary
-      const inBoundary = isPointInPolygon(housePoint, boundaryCoords);
-      console.log('  In boundary:', inBoundary);
-
-      if (!inBoundary) {
-        console.log('  ❌ House rejected: outside boundary');
-        return;
+      // Check if house center is inside boundary
+      if (!isPointInPolygon(housePoint, boundaryCoords)) {
+        return; // Skip this house
       }
 
-      // Check if point is on access road
-      const onAccessRoad = accessRoads.some(road =>
-        isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
-      );
-      console.log('  On access road:', onAccessRoad);
+      // Check if too close to access roads
+      const tooCloseToAccessRoad = accessRoads.some(road => {
+        if (road.geometry?.coordinates) {
+          return isPointOnAccessRoad(housePoint, road.geometry.coordinates, 0.00015);
+        }
+        return false;
+      });
 
-      if (onAccessRoad) {
-        console.log('  ❌ House rejected: on access road');
-        return;
+      if (tooCloseToAccessRoad) {
+        return; // Skip this house
       }
 
-      // Create house geometry
+      // Create the house (only once!)
       const house = createRotatedHouse(
         houseX,
         houseY,
-        dimensions.widthDeg,    
-        dimensions.lengthDeg,   
+        dimensions.lengthDeg,
+        dimensions.widthDeg,
         spineAngle
       );
 
-      console.log('  House created:', !!house);
-
-      if (!house) {
-        console.log('  ❌ House rejected: geometry creation failed');
-        return;
-      }
-
-      // Check if all corners are in boundary
-      const allCornersInBoundary = house.coordinates[0].every(corner => {
-        const inBound = isPointInPolygon(corner, boundaryCoords);
-        console.log('    Corner', corner, 'in boundary:', inBound);
-        return inBound;
-      });
-
-      console.log('  All corners in boundary:', allCornersInBoundary);
-
-      if (allCornersInBoundary) {
+          if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
         houses.push({
           type: 'Feature',
           geometry: house,
           properties: {
-            type: 'house',
-            id: houses.length + 1,
             height: houseHeight
           }
         });
-        housesGenerated++;
-        console.log('  ✅ House added successfully!');
-      } else {
-        console.log('  ❌ House rejected: corners outside boundary');
       }
     });
   }
-
-  console.log(`\n=== SUMMARY: Generated ${housesGenerated} houses ===`);
 }
-
-// Also add this debug version of generatePlan:
-function generatePlan() {
-    console.log('=== GENERATE PLAN CALLED ===');
     
-    if (!siteBoundary) {
-        console.log('❌ No site boundary');
-        showNotification('Please draw a site boundary first!', 'error');
-        return;
-    }
-    
-    if (accessRoads.length === 0) {
-        console.log('❌ No access roads');
-        showNotification('Please draw at least one access road!', 'error');
-        return;
-    }
-    
-    console.log('✅ Have boundary and roads, proceeding...');
-    console.log('Site boundary:', siteBoundary);
-    console.log('Access roads:', accessRoads);
-    
-    showLoading(true);
-    showNotification('Generating masterplan...', 'info');
-    
-    setTimeout(() => {
-        console.log('Starting house generation...');
-        generateHousesAlongRoads();
-        console.log('House generation complete. Total houses:', houses.length);
-        
-        showLoading(false);
-        showNotification('Masterplan generated with ' + stats.homeCount + ' houses!', 'success');
-        updateStats();
-    }, 1000);
-}
-
+            
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     const [start, end] = firstSpineLine;
     const spineDx = end[0] - start[0];
@@ -735,7 +481,7 @@ const midY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
 // 1. Get perpendicular direction (90° rotated vector)
 let perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
-const inset = 0.00018; // ~18m clearance from boundary
+const inset = 0.00023; // ~23m clearance from boundary
 
 // 2. Test direction: is perp pointing INTO the polygon?
 const testPoint = [
@@ -851,11 +597,9 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
-    // Create perfect rectangular house that rotates to match spine angle
     const halfWidth = width / 2;
     const halfLength = length / 2;
     
-    // Create corners as a perfect rectangle (5m x 5m)
     const corners = [
         [-halfLength, -halfWidth],
         [halfLength, -halfWidth], 
@@ -864,12 +608,10 @@ function createRotatedHouse(centerX, centerY, width, length, angle) {
         [-halfLength, -halfWidth]
     ];
     
-    // Apply rotation transformation
     const cosAngle = Math.cos(angle);
     const sinAngle = Math.sin(angle);
     
     const rotatedCorners = corners.map(([x, y]) => {
-        // Rotate each corner around the center
         const rotatedX = x * cosAngle - y * sinAngle;
         const rotatedY = x * sinAngle + y * cosAngle;
         
