@@ -1,4 +1,107 @@
-// Mapbox Configuration
+// Extract house generation logic into separate function for reuse
+function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
+  const lat = map.getCenter().lat;
+  const houseGapMeters = 6;  // Gap between homes
+    
+  const houseType = {
+    width: 11,
+    length: 7,
+    setbackLeft: 5,
+    setbackRight: 5,
+    setbackFront: 3,
+    setbackBack: 3
+  };
+  const dimensions = {
+    widthDeg: metersToDegrees(houseType.width, lat).lng,
+    lengthDeg: metersToDegrees(houseType.length, lat).lat,
+    setbackLeftDeg: metersToDegrees(houseType.setbackLeft, lat).lng,
+    setbackRightDeg: metersToDegrees(houseType.setbackRight, lat).lng,
+    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
+    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
+  };
+  const houseHeight = 4;
+  const spineDirection = [
+    spineLine[1][0] - spineLine[0][0],
+    spineLine[1][1] - spineLine[0][1]
+  ];
+  const totalSpineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
+  if (totalSpineLength === 0) return;
+  
+  const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
+  const perpDirection = [
+    -spineDirection[1] / totalSpineLength,
+    spineDirection[0] / totalSpineLength
+  ];
+  
+  // Calculate spacing between house centers (house length + gap)
+  const houseSpacingDeg = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
+  
+  // Leave some buffer at both ends
+  const endBufferDeg = metersToDegrees(5, lat).lat; // 5m buffer at each end
+  const usableSpineLength = totalSpineLength - (2 * endBufferDeg);
+  
+  // Calculate how many houses can fit
+  const numHouses = Math.max(1, Math.floor(usableSpineLength / houseSpacingDeg));
+  
+  console.log(`Generating houses - Spine length: ${(totalSpineLength * 111320).toFixed(1)}m, Usable: ${(usableSpineLength * 111320).toFixed(1)}m, House spacing: ${(houseSpacingDeg * 111320).toFixed(1)}m, Num houses per side: ${numHouses}`);
+  
+  for (let i = 0; i < numHouses; i++) {
+    // Position along the spine
+    let positionAlongSpine;
+    if (numHouses === 1) {
+      // If only one house, center it
+      positionAlongSpine = totalSpineLength / 2;
+    } else {
+      // Distribute evenly along usable length
+      const t = i / (numHouses - 1);
+      positionAlongSpine = endBufferDeg + t * usableSpineLength;
+    }
+    
+    // Calculate actual position on the spine
+    const spineX = spineLine[0][0] + (spineDirection[0] / totalSpineLength) * positionAlongSpine;
+    const spineY = spineLine[0][1] + (spineDirection[1] / totalSpineLength) * positionAlongSpine;
+    
+    // Generate houses on both sides of the spine
+    [-1, 1].forEach(side => {
+      const halfRoadWidthDeg = spineWidth / 2;
+      const offsetDistance = halfRoadWidthDeg + dimensions.setbackFrontDeg + dimensions.widthDeg / 2;
+      
+      const houseX = spineX + perpDirection[0] * side * offsetDistance;
+      const houseY = spineY + perpDirection[1] * side * offsetDistance;
+      const housePoint = [houseX, houseY];
+      
+      // Check if house location is valid
+      if (isPointInPolygon(housePoint, boundaryCoords)) {
+        // Check if house is not too close to any access road
+        const tooCloseToRoad = accessRoads.some(road => {
+          if (road.geometry?.coordinates) {
+            return isPointOnAccessRoad(housePoint, road.geometry.coordinates, 0.00008);
+          }
+          return false;
+        });
+        
+        if (!tooCloseToRoad) {
+          const house = createRotatedHouse(
+            houseX,
+            houseY,
+            dimensions.lengthDeg,
+            dimensions.widthDeg,
+            spineAngle
+          );
+          
+          if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
+            houses.push({
+              type: 'Feature',
+              geometry: house,
+              properties: {
+                type: 'house',
+                id: houses.length + 1,
+                height: houseHeight
+              }
+            });
+            console.log(`Added house ${houses.length} at side ${side}, position ${i}`);
+          } else {
+            console.log(`House rejected - corners outside boundary at s// Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
 // Try to get saved view from localStorage
@@ -157,21 +260,25 @@ function activateTool(tool, button) {
     }
 }
 
+// Drawing events
 map.on('draw.create', function(e) {
     const feature = e.features[0];
-
+    
     if (currentTool === 'boundary') {
         siteBoundary = feature;
         map.getSource('site-boundary').setData({
             type: 'FeatureCollection',
             features: [feature]
         });
-
+        
+        // Calculate and STORE the total boundary area
         const boundaryArea = calculateArea(feature.geometry.coordinates[0]);
         stats.totalArea = boundaryArea;
+        
+        console.log('Boundary area calculated:', boundaryArea, 'ha');
         updateStats();
         showNotification('Site boundary created! Area: ' + boundaryArea + ' ha', 'success');
-
+        
     } else if (feature.geometry.type === 'LineString') {
         feature.properties = feature.properties || {};
         feature.properties.type = 'access-road'; // 🧠 IMPORTANT
@@ -183,9 +290,11 @@ map.on('draw.create', function(e) {
 
         showNotification('Access road added!', 'success');
     }
-
+    
+    // FORCE deactivate tool
     currentTool = null;
     document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+    
     setTimeout(() => {
         draw.changeMode('simple_select');
     }, 100);
@@ -262,13 +371,10 @@ function generateHousesAlongRoads() {
         // Convert access road to polygon
         const accessRoadPolygon = createSpineRoadPolygon(coords, 0.000072); // 8m width
 
-if (accessRoadPolygon) {
-    spineRoads.push({
-        type: 'Feature',
-        geometry: accessRoadPolygon,
-        properties: { type: 'access-road' }
-    });
-}
+        if (accessRoadPolygon) {
+            road.geometry = accessRoadPolygon;
+            road.properties = { type: 'access-road' };
+        }
 
         const accessEndPoint = coords[coords.length - 1];
 
@@ -346,7 +452,7 @@ if (accessRoadPolygon) {
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
 
-    const houseGapMeters = 4;  // Set gap between homes (you can make this user-controlled too!)
+    const houseGapMeters = 2;  // Set gap between homes (you can make this user-controlled too!)
     
   const houseType = {
     width: 11,
@@ -386,12 +492,12 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   // Calculate spacing including setbacks between houses
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
 
-const numHouses = Math.floor(totalSpineLength / houseSpacing);
+  const numHouses = Math.floor(totalSpineLength / houseSpacing);
 
-for (let i = 0; i < numHouses; i++) {
-  const offsetAlong = i * houseSpacing;
-  const spineX = spineLine[0][0] + spineDirection[0] * (offsetAlong / totalSpineLength) * totalSpineLength;
-  const spineY = spineLine[0][1] + spineDirection[1] * (offsetAlong / totalSpineLength) * totalSpineLength;
+  for (let i = 0; i <= numHouses; i++) {
+    const t = i / Math.max(numHouses, 1);
+    const spineX = spineLine[0][0] + t * spineDirection[0];
+    const spineY = spineLine[0][1] + t * spineDirection[1];
 
     [-1, 1].forEach(side => {
 const halfRoadWidthDeg = spineWidth / 2;
@@ -550,6 +656,101 @@ console.log('Second spine length (degrees):', spineLength);
         properties: { type: 'spine-road' }
     }];
 }
+
+// UPDATED: Second spine generation function that returns roads and generates houses
+function addSecondSpine(boundaryCoords, firstSpineLine, firstSpineDirection) {
+    const spineWidth = 0.000045;
+    const houseSpacing = 0.000063;
+    const rowOffset = 0.00008;
+    const houseWidth = 0.000045;
+    const houseLength = 0.000045;
+    const houseHeight = 4;
+    const boundaryBuffer = 0.000050;
+
+    // 1. Find the edge farthest from the first spine midpoint
+    const midX = (firstSpineLine[0][0] + firstSpineLine[1][0]) / 2;
+    const midY = (firstSpineLine[0][1] + firstSpineLine[1][1]) / 2;
+    const midpoint = [midX, midY];
+
+    let farthestEdge = null;
+    let maxDistance = 0;
+
+    for (let i = 0; i < boundaryCoords.length - 1; i++) {
+        const start = boundaryCoords[i];
+        const end = boundaryCoords[i + 1];
+
+        const distance = pointToLineDistance(midpoint, start, end);
+        if (distance > maxDistance) {
+            maxDistance = distance;
+            const dx = end[0] - start[0];
+            const dy = end[1] - start[1];
+            const length = Math.sqrt(dx * dx + dy * dy);
+
+            farthestEdge = {
+                start,
+                end,
+                direction: [dx / length, dy / length]
+            };
+        }
+    }
+
+    if (!farthestEdge || maxDistance < 0.0001) {
+        console.log('No suitable edge found for second spine');
+        return [];
+    }
+
+    // 2. Create second spine road from midpoint toward farthest edge
+    const spineDirection = farthestEdge.direction;
+
+    // Use midpoint as center and extend in both directions
+    const leftLength = calculateSpineLengthInDirection(
+        midpoint,
+        [-spineDirection[0], -spineDirection[1]],
+        boundaryCoords,
+        boundaryBuffer
+    );
+    const rightLength = calculateSpineLengthInDirection(
+        midpoint,
+        spineDirection,
+        boundaryCoords,
+        boundaryBuffer
+    );
+
+    const spineStart = [
+        midpoint[0] - spineDirection[0] * leftLength,
+        midpoint[1] - spineDirection[1] * leftLength
+    ];
+
+    const spineEnd = [
+        midpoint[0] + spineDirection[0] * rightLength,
+        midpoint[1] + spineDirection[1] * rightLength
+    ];
+
+    const spineLine = [spineStart, spineEnd];
+    const spinePolygon = createSpineRoadPolygon(spineLine, spineWidth);
+
+    let secondSpineRoads = [];
+
+    if (spinePolygon) {
+        // Create the spine road feature
+        const spineRoadFeature = {
+            type: 'Feature',
+            geometry: spinePolygon,
+            properties: { type: 'spine-road' }
+        };
+
+        secondSpineRoads.push(spineRoadFeature);
+        console.log('Second spine road created');
+
+        // 3. Generate houses along the second spine
+        generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords);
+
+        console.log('Added houses along second spine, total houses now:', houses.length);
+    }
+
+    return secondSpineRoads;
+}
+
 // Helper functions
 function calculateSpineLengthInDirection(startPoint, direction, boundaryCoords, buffer) {
     let maxLength = 0;
@@ -598,8 +799,6 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
     
     return closestEdge;
 }
-
-
 
 function createRotatedHouse(centerX, centerY, width, length, angle) {
     // Create perfect rectangular house that rotates to match spine angle
@@ -771,18 +970,14 @@ function calculateArea(coordinates) {
     return Math.round(hectares * 100) / 100;
 }
 
-function showNotification(message, type) {
-    const notification = document.getElementById('notification');
-    notification.textContent = message;
-    notification.className = 'notification show ' + (type || 'info');
-    
-    setTimeout(() => {
-        notification.classList.remove('show');
-    }, 3000);
-}
+function metersToDegrees(meters, latitude = 51.5) {
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = 40075000 * Math.cos(latitude * Math.PI / 180) / 360;
 
-function showLoading(show) {
-    document.getElementById('loading').style.display = show ? 'block' : 'none';
+  return {
+    lat: meters / metersPerDegLat,
+    lng: meters / metersPerDegLng
+  };
 }
 
 function updateStats() {
@@ -799,14 +994,18 @@ function updateStats() {
     document.getElementById('density').textContent = stats.density + ' homes/ha';
 }
 
-function metersToDegrees(meters, latitude = 51.5) {
-  const metersPerDegLat = 111320;
-  const metersPerDegLng = 40075000 * Math.cos(latitude * Math.PI / 180) / 360;
+function showNotification(message, type) {
+    const notification = document.getElementById('notification');
+    notification.textContent = message;
+    notification.className = 'notification show ' + (type || 'info');
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+    }, 3000);
+}
 
-  return {
-    lat: meters / metersPerDegLat,
-    lng: meters / metersPerDegLng
-  };
+function showLoading(show) {
+    document.getElementById('loading').style.display = show ? 'block' : 'none';
 }
 
 updateStats();
