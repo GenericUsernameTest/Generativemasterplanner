@@ -398,14 +398,13 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
           isPointOnAccessRoad(housePoint, road.geometry?.coordinates || [], 0.00008)
         )
       ) {
-        const house = createRotatedHouse(
-          houseX,
-          houseY,
-          dimensions.lengthDeg,
-          dimensions.widthDeg,
-          spineAngle
-        );
-
+   const house = createRotatedHouse(
+  houseX,
+  houseY,
+  dimensions.widthDeg,    // was dimensions.lengthDeg
+  dimensions.lengthDeg,   // was dimensions.widthDeg
+  spineAngle
+);
         if (
           house &&
           house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))
