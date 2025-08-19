@@ -202,14 +202,6 @@ setTimeout(() => {
 }, 2000);
 
 
-
-const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/asembl/cme31yog7018101s81twu6g8n',
-    center: savedView?.center || [-0.1278, 51.5074],  // fallback to London
-    zoom: savedView?.zoom || 15                      // fallback zoom
-});
-
 // Error handling
 map.on('error', function(e) {
     console.error('Map error:', e.error);
