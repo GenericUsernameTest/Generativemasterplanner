@@ -347,7 +347,7 @@ if (accessRoadPolygon) {
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
   const houseType = {
-    width: 11,
+    width: 7,
     length: 7,
     setbackFront: 2,
     setbackBack: 2
@@ -481,7 +481,7 @@ const midY = (oppositeEdge.start[1] + oppositeEdge.end[1]) / 2;
 
 // 1. Get perpendicular direction (90° rotated vector)
 let perp = [-oppositeEdge.direction[1], oppositeEdge.direction[0]];
-const inset = 0.00038; // ~38m clearance from boundary
+const inset = 0.00030; // ~30m clearance from boundary
 
 // 2. Test direction: is perp pointing INTO the polygon?
 const testPoint = [
