@@ -349,8 +349,6 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
       const houseType = {
     width: 11,
     length: 7,
-    setbackLeft: 1,
-    setbackRight: 1,
     setbackFront: 3,
     setbackBack: 3
   };
@@ -358,8 +356,6 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const dimensions = {
     widthDeg: metersToDegrees(houseType.width, lat).lng,
     lengthDeg: metersToDegrees(houseType.length, lat).lat,
-    setbackLeftDeg: metersToDegrees(houseType.setbackLeft, lat).lng,
-    setbackRightDeg: metersToDegrees(houseType.setbackRight, lat).lng,
     setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
     setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
   };
