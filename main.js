@@ -352,11 +352,11 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackFront: 2,
     setbackBack: 2
   };
- const dimensions = {
-  widthDeg: metersToDegrees(houseType.width, lat).lat,         // Width = perpendicular to road
-  lengthDeg: metersToDegrees(houseType.length, lat).lng,       // Length = along the road
-  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
-  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
+const dimensions = {
+  widthDeg: metersToDegrees(houseType.width, lat).lng,         // ✅ PERP direction = X = longitude
+  lengthDeg: metersToDegrees(houseType.length, lat).lat,       // ✅ ALONG road = Y = latitude
+  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
+  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
 };
   const houseGapMeters = 4;  // Increased from 4 to 8
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
@@ -596,35 +596,44 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 
 
 
-function createRotatedHouse(centerX, centerY, width, length, angle) {
-    const halfWidth = width / 2;
-    const halfLength = length / 2;
-    
-    const corners = [
-        [-halfLength, -halfWidth],
-        [halfLength, -halfWidth], 
-        [halfLength, halfWidth],
-        [-halfLength, halfWidth],
-        [-halfLength, -halfWidth]
+function createRotatedHouse(centerX, centerY, widthMeters, lengthMeters, angle) {
+  const lat = centerY;
+
+  // Use proper conversions at this location
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = 40075000 * Math.cos(lat * Math.PI / 180) / 360;
+
+  // Half-dimensions
+  const halfW = widthMeters / 2;
+  const halfL = lengthMeters / 2;
+
+  // Corners in local meter space
+  const corners = [
+    [-halfL, -halfW],
+    [ halfL, -halfW],
+    [ halfL,  halfW],
+    [-halfL,  halfW],
+    [-halfL, -halfW]
+  ];
+
+  // Rotate and convert to degrees
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+
+  const rotated = corners.map(([x, y]) => {
+    const rx = x * cos - y * sin;
+    const ry = x * sin + y * cos;
+
+    return [
+      centerX + rx / metersPerDegLng,
+      centerY + ry / metersPerDegLat
     ];
-    
-    const cosAngle = Math.cos(angle);
-    const sinAngle = Math.sin(angle);
-    
-    const rotatedCorners = corners.map(([x, y]) => {
-        const rotatedX = x * cosAngle - y * sinAngle;
-        const rotatedY = x * sinAngle + y * cosAngle;
-        
-        return [
-            centerX + rotatedX,
-            centerY + rotatedY
-        ];
-    });
-    
-    return {
-        type: 'Polygon',
-        coordinates: [rotatedCorners]
-    };
+  });
+
+  return {
+    type: 'Polygon',
+    coordinates: [rotated]
+  };
 }
 
 function createSpineRoadPolygon(coords, width) {
@@ -801,3 +810,5 @@ function metersToDegrees(meters, latitude = 51.5) {
 }
 
 updateStats();
+
+where is the house length in this i cant find it
