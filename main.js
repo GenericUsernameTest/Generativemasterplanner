@@ -352,12 +352,12 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackFront: 2,
     setbackBack: 2
   };
-  const dimensions = {
-    widthDeg: metersToDegrees(houseType.width, lat).lng,
-    lengthDeg: metersToDegrees(houseType.length, lat).lng,
-    setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
-    setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
-  };
+ const dimensions = {
+  widthDeg: metersToDegrees(houseType.width, lat).lat,         // Width = perpendicular to road
+  lengthDeg: metersToDegrees(houseType.length, lat).lng,       // Length = along the road
+  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
+  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
+};
   const houseGapMeters = 8;  // Increased from 4 to 8
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
   const houseHeight = 4;
@@ -369,7 +369,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   
   const unitDirection = [spineDx / spineLength, spineDy / spineLength];
   const perpDirection = [-unitDirection[1], unitDirection[0]];
-  const spineAngle = Math.atan2(spineDy, spineDx);
+  const spineAngle = Math.atan2(unitDirection[1], unitDirection[0]);
   
   // Add start buffer
   const startBufferMeters = 15;
