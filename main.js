@@ -220,6 +220,8 @@ map.on('dblclick', function() {
     }
 });
 
+const houseGapMeters = 1;
+
 // Generate plan
 function generatePlan() {
     if (!siteBoundary) {
@@ -252,7 +254,7 @@ function generateHousesAlongRoads() {
         console.log('No site boundary found');
         return;
     }
-const houseGapMeters = 1;
+
     const boundaryCoords = siteBoundary.geometry.coordinates[0];
 
     // Process each access road and create spine roads
