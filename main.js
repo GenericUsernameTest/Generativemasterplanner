@@ -352,11 +352,11 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackFront: 2,
     setbackBack: 2
   };
- const dimensions = {
-  widthDeg: metersToDegrees(houseType.width, lat).lat,         // Width = perpendicular to road
-  lengthDeg: metersToDegrees(houseType.length, lat).lng,       // Length = along the road
-  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lng,
-  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lng
+const dimensions = {
+  widthDeg: metersToDegrees(houseType.width, lat).lng,         // ✅ PERP direction = X = longitude
+  lengthDeg: metersToDegrees(houseType.length, lat).lat,       // ✅ ALONG road = Y = latitude
+  setbackFrontDeg: metersToDegrees(houseType.setbackFront, lat).lat,
+  setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
 };
   const houseGapMeters = 4;  // Increased from 4 to 8
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lng;
