@@ -346,6 +346,8 @@ if (accessRoadPolygon) {
 function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   const lat = map.getCenter().lat;
 
+    const houseGapMeters = 2;  // Set gap between homes (you can make this user-controlled too!)
+    
   const houseType = {
     width: 11,
     length: 7,
