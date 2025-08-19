@@ -417,8 +417,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
         spineAngle
       );
 
-      // Check ALL corners are inside boundary
-      if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
+          if (house && house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
         houses.push({
           type: 'Feature',
           geometry: house,
@@ -427,6 +426,9 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
           }
         });
       }
+    });
+  }
+}
     
             
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
