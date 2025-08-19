@@ -427,14 +427,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
           }
         });
       }
-    });
-  }
-}
-
-// Also check ALL corners are inside boundary
-if (!house.coordinates[0].every(corner => isPointInPolygon(corner, boundaryCoords))) {
-  return; // Skip if any corner is outside
-}
+ 
 
 houses.push({
   type: 'Feature',
