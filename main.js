@@ -436,10 +436,7 @@ houses.push({
     height: houseHeight
   }
 });
-            });  // Close the [-1, 1].forEach loop
-  }      // Close the for loop
-}        // Close the generateHousesAlongSpine function
-        
+    
             
 function findOppositeBoundaryEdge(firstSpineLine, boundaryCoords) {
     const [start, end] = firstSpineLine;
