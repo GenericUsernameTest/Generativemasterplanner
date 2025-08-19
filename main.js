@@ -370,20 +370,28 @@ const spineDirection = [
   spineLine[1][1] - spineLine[0][1]
 ];
 
-// Normalize it to unit length
+// Normalize it to unit vector
 const spineLength = Math.sqrt(spineDirection[0] ** 2 + spineDirection[1] ** 2);
+if (spineLength === 0) return;
+
 const unitDirection = [
   spineDirection[0] / spineLength,
   spineDirection[1] / spineLength
 ];
-  if (SpineLength === 0) return;
 
-  const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
+// Perpendicular direction for left/right house placement
+const perpDirection = [
+  -unitDirection[1],
+  unitDirection[0]
+];
 
-  const perpDirection = [
-    -spineDirection[1] / totalSpineLength,
-    spineDirection[0] / totalSpineLength
-  ];
+// Angle used for house rotation
+const spineAngle = Math.atan2(spineDirection[1], spineDirection[0]);
+
+const perpDirection = [
+  -spineDirection[1] / spineLength,
+  spineDirection[0] / spineLength
+];
 
   // Calculate spacing including setbacks between houses
 const houseGapMeters = 1;  // distance between homes along the spine
