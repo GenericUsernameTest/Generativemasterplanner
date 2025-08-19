@@ -201,8 +201,7 @@ setTimeout(() => {
     showNotification('Map debugging active - check console for details', 'info');
 }, 2000);
 
-// Try to get saved view from localStorage
-const savedView = JSON.parse(localStorage.getItem('mapView'));
+
 
 const map = new mapboxgl.Map({
     container: 'map',
