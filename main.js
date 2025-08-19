@@ -361,7 +361,7 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
     setbackBackDeg: metersToDegrees(houseType.setbackBack, lat).lat
   };
 
-  const houseGapMeters = 1;
+  const houseGapMeters = 4;
   const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
   const houseHeight = 4;
 
