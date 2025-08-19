@@ -1,7 +1,7 @@
 // Mapbox Configuration
 mapboxgl.accessToken = 'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
 
-// Add this debugging code at the very beginning of your script, before the map creation:
+// Add this debugging code at t he very beginning of your script, before the map creation:
 
 console.log('🗺️ Starting map initialization...');
 console.log('🗺️ Mapbox GL JS available:', typeof mapboxgl !== 'undefined');
