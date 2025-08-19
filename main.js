@@ -252,7 +252,7 @@ function generateHousesAlongRoads() {
         console.log('No site boundary found');
         return;
     }
-
+const houseGapMeters = 2;
     const boundaryCoords = siteBoundary.geometry.coordinates[0];
 
     // Process each access road and create spine roads
@@ -382,7 +382,8 @@ function generateHousesAlongSpine(spineLine, spineWidth, boundaryCoords) {
   ];
 
   // Calculate spacing including setbacks between houses
-const houseSpacing = dimensions.lengthDeg + dimensions.setbackLeftDeg + dimensions.setbackRightDeg;
+const houseGapMeters = 2;  // distance between homes along the spine
+const houseSpacing = dimensions.lengthDeg + metersToDegrees(houseGapMeters, lat).lat;
     
 const numHouses = Math.floor(totalSpineLength / houseSpacing);
 
