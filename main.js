@@ -596,47 +596,43 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 
 
 
-function createRotatedHouse(centerX, centerY, widthDeg, lengthDeg, angle) {
+function createRotatedHouse(centerX, centerY, widthMeters, lengthMeters, angle) {
   const lat = centerY;
 
-  // 1. Meters per degree at this latitude
+  // Use proper conversions at this location
   const metersPerDegLat = 111320;
   const metersPerDegLng = 40075000 * Math.cos(lat * Math.PI / 180) / 360;
 
-  // 2. Convert dimensions from degrees to meters
-  const widthMeters  = widthDeg * metersPerDegLat;
-  const lengthMeters = lengthDeg * metersPerDegLng;
+  // Half-dimensions
+  const halfW = widthMeters / 2;
+  const halfL = lengthMeters / 2;
 
-  // 3. Define corners in meters (centered)
-  const halfWidth = widthMeters / 2;
-  const halfLength = lengthMeters / 2;
-
+  // Corners in local meter space
   const corners = [
-    [-halfLength, -halfWidth],
-    [ halfLength, -halfWidth],
-    [ halfLength,  halfWidth],
-    [-halfLength,  halfWidth],
-    [-halfLength, -halfWidth]
+    [-halfL, -halfW],
+    [ halfL, -halfW],
+    [ halfL,  halfW],
+    [-halfL,  halfW],
+    [-halfL, -halfW]
   ];
 
-  // 4. Rotate in meter space
-  const cosAngle = Math.cos(angle);
-  const sinAngle = Math.sin(angle);
+  // Rotate and convert to degrees
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
 
-  // 5. Convert rotated points back to degrees
-  const rotatedCorners = corners.map(([x, y]) => {
-    const rotatedX = x * cosAngle - y * sinAngle;
-    const rotatedY = x * sinAngle + y * cosAngle;
+  const rotated = corners.map(([x, y]) => {
+    const rx = x * cos - y * sin;
+    const ry = x * sin + y * cos;
 
-    const lngOffset = rotatedX / metersPerDegLng;
-    const latOffset = rotatedY / metersPerDegLat;
-
-    return [centerX + lngOffset, centerY + latOffset];
+    return [
+      centerX + rx / metersPerDegLng,
+      centerY + ry / metersPerDegLat
+    ];
   });
 
   return {
     type: 'Polygon',
-    coordinates: [rotatedCorners]
+    coordinates: [rotated]
   };
 }
 
