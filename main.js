@@ -596,35 +596,48 @@ function findClosestBoundaryEdge(point, boundaryCoords) {
 
 
 
-function createRotatedHouse(centerX, centerY, width, length, angle) {
-    const halfWidth = width / 2;
-    const halfLength = length / 2;
-    
-    const corners = [
-        [-halfLength, -halfWidth],
-        [halfLength, -halfWidth], 
-        [halfLength, halfWidth],
-        [-halfLength, halfWidth],
-        [-halfLength, -halfWidth]
-    ];
-    
-    const cosAngle = Math.cos(angle);
-    const sinAngle = Math.sin(angle);
-    
-    const rotatedCorners = corners.map(([x, y]) => {
-        const rotatedX = x * cosAngle - y * sinAngle;
-        const rotatedY = x * sinAngle + y * cosAngle;
-        
-        return [
-            centerX + rotatedX,
-            centerY + rotatedY
-        ];
-    });
-    
-    return {
-        type: 'Polygon',
-        coordinates: [rotatedCorners]
-    };
+function createRotatedHouse(centerX, centerY, widthDeg, lengthDeg, angle) {
+  const lat = centerY;
+
+  // 1. Meters per degree at this latitude
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = 40075000 * Math.cos(lat * Math.PI / 180) / 360;
+
+  // 2. Convert dimensions from degrees to meters
+  const widthMeters  = widthDeg * metersPerDegLat;
+  const lengthMeters = lengthDeg * metersPerDegLng;
+
+  // 3. Define corners in meters (centered)
+  const halfWidth = widthMeters / 2;
+  const halfLength = lengthMeters / 2;
+
+  const corners = [
+    [-halfLength, -halfWidth],
+    [ halfLength, -halfWidth],
+    [ halfLength,  halfWidth],
+    [-halfLength,  halfWidth],
+    [-halfLength, -halfWidth]
+  ];
+
+  // 4. Rotate in meter space
+  const cosAngle = Math.cos(angle);
+  const sinAngle = Math.sin(angle);
+
+  // 5. Convert rotated points back to degrees
+  const rotatedCorners = corners.map(([x, y]) => {
+    const rotatedX = x * cosAngle - y * sinAngle;
+    const rotatedY = x * sinAngle + y * cosAngle;
+
+    const lngOffset = rotatedX / metersPerDegLng;
+    const latOffset = rotatedY / metersPerDegLat;
+
+    return [centerX + lngOffset, centerY + latOffset];
+  });
+
+  return {
+    type: 'Polygon',
+    coordinates: [rotatedCorners]
+  };
 }
 
 function createSpineRoadPolygon(coords, width) {
