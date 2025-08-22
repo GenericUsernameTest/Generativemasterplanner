@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 * {
     margin: 0;
     padding: 0;
@@ -5,74 +7,241 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', sans-serif;
     overflow: hidden;
+    background-color: #e0e0e0; /* Ensure no white background */
 }
 
-/* Full screen map */
+/* (Deprecated) Floating nav boxes — disabled in favor of single .navbar */
+#nav-left, #nav-right { display: none !important; }
+
+/* Logo tweaks inside left box */
+#nav-left .logo-img { margin: 0; height: 32px; }
+#nav-left .logo-text { display: inline; font-weight: 600; }
+
+/* Site name chunk next to logo */
+#site-name-nav { display: flex; align-items: center; gap: 10px; margin-left: 10px; }
+#site-name-nav span { padding: 6px 10px; border-radius: 8px; cursor: text; user-select: none; }
+#site-name-nav span:hover { background: #F3F4F6; }
+
+/* Fix for Mapbox canvas and container */
+.mapboxgl-canvas-container {
+    width: 100% !important;
+    height: 100% !important;
+    background-color: #e0e0e0 !important;
+}
+
+.mapboxgl-canvas {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Full screen map with fix for white background issue */
 #map {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    z-index: 1;
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1 !important;
+    background-color: #e0e0e0 !important; /* Light gray background so it's obvious if tiles don't load */
 }
 
 /* Navigation Bar */
 .navbar {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 75px;
+    top: 10px;
+    left: 0px;
+    right: 0px;
+    margin: 0 auto;
+    min-height: 60px;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    z-index: 1000;
+    z-index: 2000;
     display: flex;
     align-items: center;
     padding: 0 20px;
+    box-sizing: border-box;
+    justify-content: space-between; /* Align left elements left and geocoder fully right */
+    max-width: calc(100% - 20px);
+}
+
+/* Logo container */
+#nav-left,
+.logo-container {
+    display: flex;
+    align-items: center;
+    flex: 1;
 }
 
 .logo-img {
-    height: 40px;
+    display: block;
+    height: 35px;
     width: auto;
     object-fit: contain;
-    max-width: 150px;
+    max-width: 120px;
+    vertical-align: middle;
+    /* Add divider using pseudo-element on the image */
+    position: relative;
 }
 
-.clear-button {
-    background: #e74c3c !important;
+.logo-img::after {
+    content: "";
+    display: block;
+    position: absolute;
+    right: -7px;
+    top: 4px;
+    height: 27px;
+    width: 0;
+    border-right: 0.5px solid #ccc;
 }
 
-.clear-button:hover {
-    background: #c0392b !important;
+.logo-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+    margin-left: 7px;
+    outline: none;
+    border: none;
+    background: transparent;
+    cursor: text;
+    /* Remain editable/renameable */
+    display: block;
+    /* sits to the right of .logo-img */
+    display: none !important;
 }
 
-/* Toolbox (Top Right) */
-.toolbox {
+.logo-img[style*="display: none"] + .logo-text {
+    margin-left: 0;
+}
+
+/* Spacer for flex layout balance */
+.spacer {
+    flex: 1;
+}
+
+/* Right-aligned container for geocoder + three-dots */
+.nav-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Geocoder — dock to the right inside the navbar */
+#geocoder {
+    width: min(300px, 40vw);
+    display: block;
+}
+
+/* Three-dots icon */
+.nav-ellipsis {
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 700; /* slightly bolder */
+    padding: 6px 8px;
+    border-radius: 8px;
+    color: #111827;
+    cursor: pointer;
+    user-select: none;
+    outline: none !important;
+    border: 1px solid transparent !important; /* kill default button border */
+    background: transparent; /* no fill unless hover */
+    box-shadow: none !important; /* kill focus ring variants */
+    -webkit-tap-highlight-color: transparent;
+}
+.nav-ellipsis:hover { background: #F3F4F6; }
+.nav-ellipsis:focus,
+.nav-ellipsis:focus-visible,
+.nav-ellipsis:active {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+/* Dropdown menu under three-dots */
+.nav-right { position: relative; }
+.nav-dropdown {
+    position: fixed; /* anchor to the viewport/nav bar edge */
+    top: calc(10px + 55px + 4px); /* just below the navbar */
+    right: 0px; /* align with navbar's right inset */
+    min-width: 200px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    padding: 8px 0; /* keep only vertical padding */
+    z-index: 1200;
+    display: none;
+}
+.nav-dropdown.open { display: block; }
+.nav-dropdown .menu-header {
+    padding: 10px 14px;
+    margin: 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.nav-dropdown .menu-header:hover {
+    background: #F3F4F6;
+}
+/* Make the control fill its container */
+.navbar #geocoder .mapboxgl-ctrl-geocoder {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-radius: 9999px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+/* Draw Panel (Right Side) */
+.draw-panel {
     position: fixed;
-    top: 100px;
-    right: 20px;
+    top: calc(10px + 75px + 20px);
+    right: 10px;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
     border-radius: 10px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    padding: 15px;
+    padding: 10px;
     z-index: 1000;
-    min-width: 200px;
+    min-width: 220px;
 }
 
-.toolbox h3 {
+/* Left plot panel (kept clear of navbar) */
+.plot-panel {
+  position: fixed;
+  top: calc(10px + 75px + 20px); /* 10px offset + navbar height + 20px gap */
+  left: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  z-index: 1000;
+  min-width: 220px;
+}
+
+.draw-panel h3 {
     margin-bottom: 15px;
     color: #2c3e50;
     font-size: 16px;
+    font-weight: 600;
 }
 
-.tool-button {
+.draw-button {
     display: block;
     width: 100%;
-    padding: 12px 15px;
+    padding: 10px 12px;
     margin-bottom: 10px;
     background: #3498db;
     color: white;
@@ -84,119 +253,87 @@ body {
     transition: all 0.3s ease;
 }
 
-.tool-button:hover {
+.draw-button:hover {
     background: #2980b9;
     transform: translateY(-1px);
 }
 
-.tool-button:active, .tool-button.active {
+.draw-button.active {
     background: #e74c3c;
-    transform: translateY(0);
 }
 
-.tool-button:last-child {
-    margin-bottom: 0;
-    background: #27ae60;
+.clear-button {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
 }
 
-.tool-button:last-child:hover {
-    background: #229954;
+.clear-button:hover {
+    background: #c0392b;
+    transform: translateY(-1px);
 }
 
-/* Stats Box (Bottom Left) */
-.stats-box {
+/* Area Toolbar (Bottom Left) */
+.area-toolbar {
     position: fixed;
-    bottom: 20px;
-    left: 20px;
+    bottom: 10px;
+    left: 10px;
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(10px);
     border-radius: 10px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    padding: 20px;
+    padding: 10px;
     z-index: 1000;
     min-width: 250px;
 }
 
-.stats-box h3 {
+.area-toolbar h3 {
     margin-bottom: 15px;
     color: #2c3e50;
     font-size: 16px;
+    font-weight: 600;
 }
 
-.stat-item {
+.area-item {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 10px;
+    align-items: center;
     font-size: 14px;
 }
 
-.stat-label {
+.area-label {
     color: #7f8c8d;
     font-weight: 500;
 }
 
-.stat-value {
+.area-value {
     color: #2c3e50;
     font-weight: bold;
+    font-size: 16px;
 }
 
-.stat-item:last-child {
-    margin-bottom: 0;
-}
-
-/* Loading indicator */
-.loading {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.9);
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    z-index: 2000;
-    display: none;
-}
-
-/* Notification system */
-.notification {
-    position: fixed;
-    top: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #3498db;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 6px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    z-index: 1500;
-    opacity: 0;
-    transition: all 0.3s ease;
-    pointer-events: none;
-}
-
-.notification.show {
-    opacity: 1;
-    pointer-events: all;
-}
-
-.notification.success {
-    background: #27ae60;
-}
-
-.notification.error {
-    background: #e74c3c;
+/* Custom Mapbox Draw Styles */
+.mapboxgl-ctrl-draw-btn {
+    display: none !important;
 }
 
 /* Responsive design */
 @media (max-width: 768px) {
-    .toolbox {
+    .draw-panel {
         right: 10px;
         min-width: 180px;
-        padding: 12px;
+        padding: 15px;
     }
     
-    .stats-box {
+    .area-toolbar {
         left: 10px;
         right: 10px;
         min-width: auto;
@@ -206,8 +343,38 @@ body {
     .navbar {
         padding: 0 15px;
     }
-    
-    .logo {
-        font-size: 20px;
-    }
 }
+
+/* Nudge controls inside the draw panel */
+.nudge-group { margin-top: 12px; }
+.nudge-group h4 { margin: 6px 0 8px; font-size: 13px; color: #2c3e50; font-weight: 600; }
+.nudge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+.nudge-spacer { height: 0; }
+.nudge-btn { 
+  padding: 8px 0; 
+  background: #ecf0f1; 
+  border: 1px solid #d0d7de; 
+  border-radius: 6px; 
+  font-size: 14px; 
+  cursor: pointer; 
+}
+.nudge-btn:hover { background: #e2e6ea; }
+
+/* Ensure the search bar hugs the right edge of the navbar */
+.navbar #geocoder { margin-left: auto !important; }
+/* Generate Neighbourhood button */
+.btn-generate {
+  width: 100%;
+  background-color: #1d4ed8; /* blue */
+  color: #ffffff;
+  border: none;
+  padding: 20px;
+  font-size: 15px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  transition: opacity 0.2s ease-in-out;
+}
+.btn-generate:hover { opacity: 0.8; }
+
