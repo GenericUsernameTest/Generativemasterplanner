@@ -28,7 +28,7 @@ class MasterplanningTool {
 
     this.mapboxToken = window.MAPBOX_TOKEN ||
       'pk.eyJ1IjoiYXNlbWJsIiwiYSI6ImNtZTMxcG90ZzAybWgyanNjdmdpbGZkZHEifQ.3XPuSVFR0s8kvnRnY1_2mw';
-    this.mapboxStyle = 'mapbox://styles/mapbox/streets-v12';
+    this.mapboxStyle = 'mapbox://styles/asembl/cmemsamyn006p01qwgd18h411';
 
     this.phase = 1; // 1 = Plot Site, 2 = Grid
   this._activationMarker = null; // DOM marker for "Save Boundary"
